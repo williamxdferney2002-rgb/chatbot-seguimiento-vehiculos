@@ -1,0 +1,1278 @@
+{
+  "name": "Cuentas - WhatsApp entrada v1",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "id": "8429742a-4800-4495-b67b-599d88509801",
+      "name": "WhatsApp Trigger",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "00000000-0000-4000-8000-000000000103",
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WhatsApp OAuth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "47ae954d-8a58-42c5-9e46-df3a96d9f649",
+              "name": "phoneNumberId",
+              "value": "100000000000000",
+              "type": "string"
+            },
+            {
+              "id": "c403219d-58dc-4616-bed9-58a4b10a418d",
+              "name": "graphVersion",
+              "value": "v25.0",
+              "type": "string"
+            },
+            {
+              "id": "fea3eabe-ebda-42c2-b007-2f1730e104de",
+              "name": "chatId",
+              "value": -1001234567890,
+              "type": "number"
+            },
+            {
+              "id": "4665ce77-dd84-4bfd-8214-bad8f5686110",
+              "name": "grupoTelegram",
+              "value": "-1001234567890",
+              "type": "string"
+            },
+            {
+              "id": "934cb1b0-8ef7-4a9f-8897-076d53b6ec64",
+              "name": "permitidos",
+              "value": [
+                {
+                  "numero": "573000000000",
+                  "nombre": "Diego"
+                },
+                {
+                  "numero": "573000000000",
+                  "nombre": "Mario"
+                },
+                {
+                  "numero": "573000000000",
+                  "nombre": "Admin"
+                }
+              ],
+              "type": "array"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "26e25f3b-ca0e-48a1-a588-1d004aacbfe4",
+      "name": "Config WA",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        240,
+        0
+      ],
+      "notes": "CONFIGURE_WA_CHAT_ID = same as cuentas-bot-v7. Replace 0 with the authorized numeric bot chatId.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "029c2ca3-c0ef-4e61-92ad-4924ca6333c5",
+              "leftValue": "={{ String($json.metadata?.phone_number_id || '') }}",
+              "rightValue": "={{ String($('Config WA').first().json.phoneNumberId) }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "88c4bc6c-c38a-4180-b794-af615558f0e5",
+      "name": "¿Es nuestro número?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// T-046 · Basado en adaptar() de telegram-whatsapp-n8n/adaptador.js.\n// Los estados no generan items; reacciones y botones ajenos solo se copian al grupo.\nconst config = $('Config WA').first().json;\nconst permitidos = typeof config.permitidos === 'string' ? JSON.parse(config.permitidos) : config.permitidos;\nif (!Array.isArray(permitidos)) throw new Error('Config WA: permitidos debe ser una lista');\nconst CFG = {\n  phoneNumberId: config.phoneNumberId,\n  chatId: Number(config.chatId),\n  permitidos: permitidos.map(p => p.numero),\n  nombres: Object.fromEntries(permitidos.map(p => [p.numero, p.nombre])),\n  callbackOk: /^pc:[^:]+:[^:]+$/,\n};\nfunction adaptar(items, cfg) {\n  const out = [];\n  const vistos = new Set();\n  items.forEach((item, idx) => {\n    const raw = item.json.body || item.json;\n    // El WhatsApp Trigger entrega el \"value\" directo; un Webhook genérico entrega entry[].changes[].\n    const values = raw.entry\n      ? raw.entry.flatMap(e => (e.changes || []).filter(c => c.field === 'messages').map(c => c.value))\n      : [raw];\n    for (const v of values) {\n      const pid = v.metadata?.phone_number_id;\n      if (!pid || String(pid) !== String(cfg.phoneNumberId)) continue;\n      // Los avisos de estado (enviado, entregado, leído) llegan sin \"messages\": no producen nada.\n      for (const m of v.messages || []) {\n        if (!m.id || typeof m.type !== 'string' || typeof m.from !== 'string' || !m.from || vistos.has(m.id)) continue;\n        const wa = { from: m.from, wamid: m.id, tipo: m.type, context_id: m.context?.id || null };\n        wa.nombre = v.contacts?.find(c=>c.wa_id===m.from)?.profile?.name || '';\n        const msg = { message_id: m.id, date: Number(m.timestamp) || 0,\n                      chat: { id: cfg.chatId, type: 'private' }, from: { id: cfg.chatId } };\n        const update = { update_id: 'wa_' + m.id, canal: 'whatsapp', wa, message: msg };\n        // Meta solo manda el wamid del mensaje respondido; el texto se restaura desde la tabla wa_contexto.\n        if (wa.context_id) msg.reply_to_message = { message_id: wa.context_id, text: '' };\n        let soportado = true;\n        let ignorar = ['reaction', 'unsupported'].includes(m.type);\n        let dataBoton = '';\n        const media = m[m.type];\n        if (m.type === 'text' && typeof m.text?.body === 'string') msg.text = m.text.body;\n        else if (['audio', 'image', 'document'].includes(m.type) && media?.id) {\n          const mime = String(media.mime_type || '').split(';')[0].trim();\n          const f = { file_id: media.id, file_unique_id: media.sha256 || media.id, mime_type: mime };\n          wa.media_id = media.id; wa.mime_type = mime;\n          if (m.type === 'audio' && mime.startsWith('audio/')) msg.voice = f;\n          else if (m.type === 'image' && mime.startsWith('image/')) msg.photo = [f];\n          else if (m.type === 'document' && /^(image\\/|application\\/pdf$)/.test(mime))\n            msg.document = { ...f, file_name: media.filename || '' };\n          else soportado = false;\n          if (media.caption) msg.caption = media.caption;\n        } else if (m.type === 'interactive') {\n          dataBoton = m.interactive?.button_reply?.id || m.interactive?.list_reply?.id || '';\n          if (!cfg.callbackOk.test(dataBoton) || !wa.context_id) {\n            ignorar = true;\n            soportado = false;\n          } else {\n            delete update.message;\n            update.callback_query = { id: m.id, from: { id: cfg.chatId }, data: dataBoton,\n                                      message: { ...msg, message_id: wa.context_id, text: '' } };\n          }\n        } else soportado = false;\n        const autorizado = cfg.permitidos.includes(m.from);\n        const nombre = wa.nombre || cfg.nombres[m.from] || 'Desconocido';\n        const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n        let aviso;\n        if (m.type === 'text') aviso = m.text?.body || '';\n        else if (m.type === 'interactive') aviso = '[botón] ' + dataBoton;\n        else {\n          const etiqueta = { image: 'foto', audio: 'audio', document: 'PDF/documento', sticker: 'sticker' }[m.type] || m.type;\n          aviso = '[' + etiqueta + ']';\n          if (media?.caption) aviso += ' ' + media.caption;\n          if (media?.filename) aviso += ' ' + media.filename;\n        }\n        // El único <b> es fijo y ya queda cerrado antes de cualquier dato variable.\n        // Recortar por tokens escapados conserva entidades y pares Unicode completos.\n        let textoGrupo = '📲 <b>WhatsApp</b> · ';\n        const contenidoGrupo = esc(nombre) + ' (+' + esc(m.from) + ')\\n' + esc(aviso)\n          + (autorizado ? '' : '\\n(no autorizado)');\n        for (const [token] of contenidoGrupo.matchAll(/&(?:amp|lt|gt);|[\\s\\S]/gu)) {\n          if (textoGrupo.length + token.length > 4000) break;\n          textoGrupo += token;\n        }\n        vistos.add(m.id);\n        out.push({ json: { update, soportado, autorizado, ignorar, from: m.from, nombre, tipo: m.type, wamid: m.id, textoGrupo },\n                   pairedItem: { item: idx } });\n      }\n    }\n  });\n  return out;\n}\n\nreturn adaptar($input.all(), CFG);"
+      },
+      "id": "b50b9eba-6209-47d0-ac0a-37b104c2dfed",
+      "name": "Adaptar WhatsApp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "DEsFrTu6V0C8W2pX"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "clave",
+              "condition": "eq",
+              "keyValue": "={{ 'in:' + $json.wamid }}"
+            }
+          ]
+        }
+      },
+      "id": "5544e2ef-d48b-45ef-80eb-fb0dc014b54b",
+      "name": "¿Ya recibido?",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        0
+      ],
+      "alwaysOutputData": false,
+      "notes": "Continue only if the key does not exist; a recorded retry ends silently."
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "DEsFrTu6V0C8W2pX"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "clave": "={{ 'in:' + $json.wamid }}",
+            "ejecucion": "={{ String($execution.id) }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "clave",
+              "displayName": "clave",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ejecucion",
+              "displayName": "ejecucion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "a263f7b3-dc41-4c3a-a9c1-3bced5e9b4ca",
+      "name": "Registrar wamid",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('Config WA').first().json.grupoTelegram }}",
+        "text": "={{ $('Adaptar WhatsApp').item.json.textoGrupo.replace(/&(?!(?:amp|lt|gt);)/g, '&amp;') }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "9ebf7d20-292f-488d-bce4-11c2c69b1f99",
+      "name": "Copiar al grupo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        -240
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput",
+      "notes": "textoGrupo escapes & < > in Adaptar WhatsApp; the expression preserves that escaping and the fixed <b> tag. Media produces a type notification only."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "8e5a7aa7-cabe-4894-99d2-ce0bb7d0c53b",
+              "leftValue": "={{ $('Adaptar WhatsApp').item.json.autorizado && !$('Adaptar WhatsApp').item.json.ignorar }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d48d7e09-2177-47e5-b006-f9fa54bed9a7",
+      "name": "¿Autorizado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "OHHVV7wuZOF2fddL"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "remitente",
+              "condition": "eq",
+              "keyValue": "={{ $('Adaptar WhatsApp').item.json.from }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "remitente": "={{ $('Adaptar WhatsApp').item.json.from }}",
+            "fecha": "={{ $now.toUTC().toISO() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "remitente",
+              "displayName": "remitente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "81f42937-1d6e-43ea-a5dd-3f564a9dd38d",
+      "name": "Registrar última hora",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "59ddd3a7-bd69-427f-9d5c-fddd9fe706d4",
+              "leftValue": "={{ $('Adaptar WhatsApp').item.json.soportado }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "924c60cc-070e-490d-9638-39f0a2a1cf27",
+      "name": "¿Soportado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c3dd7866-0e6d-4b82-89d1-2b9b23ca617c",
+              "name": "update",
+              "value": "={{ $('Adaptar WhatsApp').item.json.update }}",
+              "type": "object"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "83333fc9-8027-48d5-802d-43734d9e95b0",
+      "name": "Preparar entrada del bot",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2160,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "YOUR_WORKFLOW_ID",
+          "mode": "id"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "309678ef-a38e-4737-a42b-b23d4736922a",
+      "name": "Llamar bot",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2400,
+        -80
+      ],
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "72f3c6d1-1c0f-4122-b63a-54941f52bdf0",
+              "name": "canal",
+              "value": "whatsapp",
+              "type": "string"
+            },
+            {
+              "id": "8ec62eab-524d-44cf-8a1b-958739c6c7b9",
+              "name": "destino",
+              "value": "={{ $('Adaptar WhatsApp').item.json.from }}",
+              "type": "string"
+            },
+            {
+              "id": "d38183a2-2ee9-4f1c-a306-87c3ba069f06",
+              "name": "texto",
+              "value": "Solo texto, audio, foto o PDF",
+              "type": "string"
+            },
+            {
+              "id": "cf25e53a-9b11-46b3-b888-8ff2f8b9d850",
+              "name": "botones",
+              "value": [],
+              "type": "array"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "f704dd86-6ec5-4b32-9160-a4a9269ab152",
+      "name": "Preparar aviso no soportado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2160,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "YOUR_WORKFLOW_ID",
+          "mode": "id"
+        },
+        "mode": "each",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "canal": "={{ $json.canal }}",
+            "destino": "={{ $json.destino }}",
+            "texto": "={{ $json.texto }}",
+            "botones": "={{ $json.botones }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "canal",
+              "displayName": "canal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "destino",
+              "displayName": "destino",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "botones",
+              "displayName": "botones",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "c3254225-d82a-4849-8fec-b140896cfe93",
+      "name": "Avisar no soportado",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2400,
+        120
+      ],
+      "onError": "stopWorkflow"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ihpRmFDqNgC18vpZ"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "destino",
+              "condition": "eq",
+              "keyValue": "={{ $('Adaptar WhatsApp').item.json.from }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "fc199900-4b48-4a4a-981f-0dc47635771e",
+      "name": "Leer pendientes",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1920,
+        400
+      ],
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Conservar pairedItem para borrar por el id original de Leer pendientes.\n// El subflujo recibe solo su contrato de envío, sin columnas internas.\nconst vistos = new Set();\nconst out = [];\nfor (const [index, item] of $input.all().entries()) {\n  const r = item.json || {};\n  if (!Number.isSafeInteger(Number(r.id)) || Number(r.id) <= 0 ||\n      typeof r.destino !== 'string' || !r.destino.trim() || typeof r.texto !== 'string' || !r.texto.trim()) {\n    continue; // Una fila inválida no bloquea los demás pendientes.\n  }\n  if (vistos.has(String(r.id))) continue;\n  vistos.add(String(r.id));\n  out.push({ json: { canal: 'whatsapp', destino: r.destino, texto: r.texto, botones: [] }, pairedItem: { item: index } });\n}\nreturn out;"
+      },
+      "id": "f038e316-1202-4c41-823b-121b83ac09ed",
+      "name": "Armar pendiente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "DEsFrTu6V0C8W2pX"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "clave",
+              "condition": "eq",
+              "keyValue": "={{ 'pend:' + $('Leer pendientes').item.json.id }}"
+            }
+          ]
+        }
+      },
+      "id": "23645472-aa5a-4dd4-b970-634e450dac7f",
+      "name": "¿Pendiente reservado?",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2400,
+        640
+      ],
+      "alwaysOutputData": false,
+      "notes": "Only pending items without a previous wa_candados reservation continue. Preserve Armar pendiente item linking."
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "DEsFrTu6V0C8W2pX"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "clave": "={{ 'pend:' + $('Leer pendientes').item.json.id }}",
+            "ejecucion": "={{ String($execution.id) }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "clave",
+              "displayName": "clave",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ejecucion",
+              "displayName": "ejecucion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "d7096497-8d60-4bfd-968b-b22ab100f812",
+      "name": "Reservar pendiente",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2640,
+        640
+      ],
+      "notes": "Reserve pend:<original id> for the current execution. The returned ID belongs to the reservation, never to the pending item."
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "737f4787-6fff-4981-aa46-b3773420c738",
+      "name": "Esperar reserva pendiente",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2880,
+        640
+      ],
+      "webhookId": "00000000-0000-4000-8000-000000000104"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "DEsFrTu6V0C8W2pX"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "clave",
+              "condition": "eq",
+              "keyValue": "={{ 'pend:' + $('Leer pendientes').item.json.id }}"
+            },
+            {
+              "keyName": "id",
+              "condition": "lt",
+              "keyValue": "={{ $('Reservar pendiente').item.json.id }}"
+            }
+          ]
+        }
+      },
+      "id": "6c9f4e9a-fede-4771-bf43-14f7fd04c971",
+      "name": "¿Reserva pendiente ganadora?",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        3120,
+        640
+      ],
+      "alwaysOutputData": false,
+      "notes": "After 3 s, continue only if no earlier reservation (lower automatic ID) exists for the same pending item. Keep reservations to prevent redelivery."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dc4826f4-e48f-48ef-96dd-d85ff4c1bea3",
+              "leftValue": "={{ Number.isSafeInteger(Number($json.id)) && Number($json.id) > 0 && $json.ejecucion === String($execution.id) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5508c583-194c-43cd-9b96-d4a32346b142",
+      "name": "¿Reserva de esta ejecución?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3360,
+        640
+      ],
+      "notes": "Verify reservation ownership before restoring the delivery contract."
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b759f55c-b3e7-4fc3-b5b3-f921998f1721",
+              "name": "canal",
+              "value": "={{ $('Armar pendiente').item.json.canal }}",
+              "type": "string"
+            },
+            {
+              "id": "226c4494-b88e-453a-ad76-c9295ceeba1d",
+              "name": "destino",
+              "value": "={{ $('Armar pendiente').item.json.destino }}",
+              "type": "string"
+            },
+            {
+              "id": "73f52f32-9ecb-402d-9f0a-ede8478ad302",
+              "name": "texto",
+              "value": "={{ $('Armar pendiente').item.json.texto }}",
+              "type": "string"
+            },
+            {
+              "id": "dcb1e664-13d4-4966-8e4f-aa86da331fb5",
+              "name": "botones",
+              "value": "={{ $('Armar pendiente').item.json.botones }}",
+              "type": "array"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "id": "9a337aa5-6113-4942-acd7-df3739e52b76",
+      "name": "Preparar pendiente reservado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3600,
+        640
+      ],
+      "notes": "Restore only {canal,destino,texto,botones} from the reserved item. Every intermediate node preserves pairedItem back to Leer pendientes."
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "YOUR_WORKFLOW_ID",
+          "mode": "id"
+        },
+        "mode": "each",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "canal": "={{ $json.canal }}",
+            "destino": "={{ $json.destino }}",
+            "texto": "={{ $json.texto }}",
+            "botones": "={{ $json.botones }}",
+            "sinCopia": true
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "canal",
+              "displayName": "canal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "destino",
+              "displayName": "destino",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "botones",
+              "displayName": "botones",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "sinCopia",
+              "displayName": "sinCopia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "0adaf609-0778-4a58-9d23-9fc1b648c818",
+      "name": "Entregar pendiente",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2400,
+        400
+      ],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "notes": "Wait for the subworkflow; check {ok} in ¿Pendiente entregado? before deleting. Failed delivery retains the row."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3bbaa39d-a89e-4fb3-982a-7ebce1b61e40",
+              "leftValue": "={{ $json.ok === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f88e2749-8daa-4fda-859e-8e05c093e088",
+      "name": "¿Pendiente entregado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2640,
+        400
+      ],
+      "notes": "cuentas-enviar-v1 returns ok:false on transport failures without throwing. Only ok:true authorizes deletion; false, missing ok, or an error retains the row."
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "ihpRmFDqNgC18vpZ"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Leer pendientes').item.json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2911dbba-8582-49a6-bb34-bc65b501cc25",
+      "name": "Borrar pendiente",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2880,
+        400
+      ],
+      "notes": "Use the automatic ID from Leer pendientes via item linking, never recipient or row position. Run only after ok:true from the send subworkflow."
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "DEsFrTu6V0C8W2pX"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "clave",
+              "condition": "eq",
+              "keyValue": "={{ 'pend:' + $('Leer pendientes').item.json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "086c857b-af83-491e-976a-c31541f936e7",
+      "name": "Liberar reserva pendiente",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2880,
+        880
+      ],
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "notes": "On delivery failure, remove all pend:<original id> reservations, including losing executions. Keep wa_pendientes to retry on the next message; an empty result also continues."
+    },
+    {
+      "parameters": {
+        "content": "## Import · T-046 · n8n 2.41.6\n1. Create Data Tables in the same project:\n- wa_candados: clave (string), ejecucion (string).\n- wa_ultimo: remitente (string), fecha (ISO UTC string).\n- wa_pendientes: destino (string), texto (string), origen (string).\nDo NOT create id, createdAt, or updatedAt: n8n generates them.\n2. Replace placeholders:\n- CONFIGURE_WA_TRIGGER_CRED_ID: whatsAppTriggerApi credential.\n- CONFIGURE_WA_PHONE_NUMBER_ID: business phone-number ID, not the displayed telephone number.\n- CONFIGURE_WA_CHAT_ID: replace chatId=0 with the authorized cuentas-bot-v7 chat number.\n- CONFIGURE_WA_DIEGO, CONFIGURE_WA_ANGEL, CONFIGURE_WA_ADMIN: authorized m.from values in permitidos.\n- CONFIGURE_WA_CANDADOS_TABLE_ID, CONFIGURE_WA_ULTIMO_TABLE_ID, CONFIGURE_WA_PENDIENTES_TABLE_ID: table IDs.\n- CONFIGURE_ENVIAR_WORKFLOW_ID: cuentas-enviar-v1.\n- CONFIGURE_BOT_V7_WORKFLOW_ID: cuentas-bot-v7.\n- CONFIGURE_ERRORES_WORKFLOW_ID (settings): cuentas-errores-v1.\n3. Review the placeholder Telegram VehicleLedger credential, group, and Graph v25.0.\n4. Import/publish cuentas-enviar-v1 and cuentas-bot-v7 BEFORE this inbound adapter. If v7 replaces an older Telegram bot workflow, unpublish the old workflow BEFORE publishing v7.\n5. cuentas-enviar-v1 accepts {canal,destino,texto,botones} and returns {ok}; only ok:true permits deleting pending items. cuentas-bot-v7 receives {update} only. Set nodes exclude other fields.\n6. Meta test numbers send only to verified recipients. Test authorized/unauthorized text, stickers, audio/photos/PDFs, reactions and unsupported messages (group copy only), contextless or foreign buttons (copy only), long text with &, consecutive messages with queued notices, and a repeated wamid.\nDelivered inactive, without pinned data or secrets. ¿Ya recibido? + insert is not an atomic reservation across simultaneous executions. Pending delivery: rowNotExists → insert pend:<id> → wait 3 s → exclude higher-ID reservations → verify execution → deliver. Only ok:true deletes the original pending ID and retains reservations. If sending returns ok:false, lacks ok:true, or throws, remove all pend:<id> reservations (including losing executions) and retain wa_pendientes for the next message. Releasing no reservations must not stop the workflow. Verify concurrency and failure recovery in n8n before deployment.",
+        "height": 650,
+        "width": 1100
+      },
+      "id": "a50b8daa-aa3c-41d8-a8e6-1b73179aa2aa",
+      "name": "Importar",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -700
+      ]
+    }
+  ],
+  "connections": {
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config WA": {
+      "main": [
+        [
+          {
+            "node": "¿Es nuestro número?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es nuestro número?": {
+      "main": [
+        [
+          {
+            "node": "Adaptar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Adaptar WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "¿Ya recibido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ya recibido?": {
+      "main": [
+        [
+          {
+            "node": "Registrar wamid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar wamid": {
+      "main": [
+        [
+          {
+            "node": "Copiar al grupo",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "¿Autorizado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Autorizado?": {
+      "main": [
+        [
+          {
+            "node": "Registrar última hora",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Registrar última hora": {
+      "main": [
+        [
+          {
+            "node": "¿Soportado?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Leer pendientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Soportado?": {
+      "main": [
+        [
+          {
+            "node": "Preparar entrada del bot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar aviso no soportado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar entrada del bot": {
+      "main": [
+        [
+          {
+            "node": "Llamar bot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar aviso no soportado": {
+      "main": [
+        [
+          {
+            "node": "Avisar no soportado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer pendientes": {
+      "main": [
+        [
+          {
+            "node": "Armar pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar pendiente": {
+      "main": [
+        [
+          {
+            "node": "¿Pendiente reservado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entregar pendiente": {
+      "main": [
+        [
+          {
+            "node": "¿Pendiente entregado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Pendiente entregado?": {
+      "main": [
+        [
+          {
+            "node": "Borrar pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Liberar reserva pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Pendiente reservado?": {
+      "main": [
+        [
+          {
+            "node": "Reservar pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reservar pendiente": {
+      "main": [
+        [
+          {
+            "node": "Esperar reserva pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar reserva pendiente": {
+      "main": [
+        [
+          {
+            "node": "¿Reserva pendiente ganadora?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Reserva pendiente ganadora?": {
+      "main": [
+        [
+          {
+            "node": "¿Reserva de esta ejecución?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Reserva de esta ejecución?": {
+      "main": [
+        [
+          {
+            "node": "Preparar pendiente reservado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Preparar pendiente reservado": {
+      "main": [
+        [
+          {
+            "node": "Entregar pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "errorWorkflow": "YOUR_ERROR_WORKFLOW_ID",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

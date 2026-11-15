@@ -1,0 +1,20 @@
+fecha,placa,km,galones,total_cop,precio_gal,tipo,precio_atipico,nota,registrado_por
+2025-04-01 08:00,TRK101,1000,10,100000,10000,tanqueo,,,Demo
+2025-04-02 08:00,TRK101,1000,,,,evento,,Synthetic maintenance event,Demo
+2025-08-11 08:00,TRK101,2000,10,100000,10000,tanqueo,,,Demo
+2025-08-14 08:00,TRK101,2222,20,200000,10000,tanqueo,,,Demo
+2025-08-17 08:00,TRK101,2560,20,200000,10000,tanqueo,,,Demo
+2025-08-20 08:00,TRK101,3090,20,200000,10000,tanqueo,,,Demo
+2025-09-01 08:00,TRK101,4000,10,100000,10000,tanqueo,,,Demo
+2025-09-04 08:00,TRK101,4200,10,100000,10000,tanqueo,,,Demo
+2025-10-15 08:00,TRK101,5000,10,150000,15000,tanqueo,Sí,Synthetic price outlier,Demo
+2026-06-01 08:00,TRK101,6000,10,100000,10000,tanqueo,,,Demo
+2026-06-04 08:00,TRK101,6200,10,100000,10000,tanqueo,,,Demo
+2026-10-11 08:00,TRK101,7000,10,100000,10000,tanqueo,,,Demo
+2026-10-14 08:00,TRK101,7266,20,200000,10000,tanqueo,,,Demo
+2026-06-01 08:00,TRK202,1000,10,100000,10000,tanqueo,,,Demo
+2026-06-04 08:00,TRK202,1200,10,100000,10000,tanqueo,,,Demo
+2026-06-05 08:00,TRK202,1200,,,,evento,,Synthetic inspection event,Demo
+2025-11-01 08:00,TRK202,100,10,100000,10000,tanqueo,,,Demo
+2026-05-01 08:00,TRK202,500,10,100000,10000,tanqueo,,,Demo
+2025-09-11 08:00,TRK101,4350,10,100000,10000,tanqueo,,Synthetic seven-day gap: excluded from efficiency,Demo

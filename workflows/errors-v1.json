@@ -1,0 +1,86 @@
+{
+  "name": "Cuentas - Errores",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "00995ee3-04cd-4153-a731-0ef2db9e46d5",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aviso de error para Admin (privado). Todo texto variable se escapa (Telegram HTML).\nconst d = $input.first().json || {};\nconst ex = d.execution || {};\nconst wf = d.workflow || {};\nconst tr = d.trigger || {};\nconst esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n\nconst err = ex.error || tr.error || d.error || {};\nlet msg = String(err.message || err.description || 'Sin mensaje de error');\nif (msg.length > 500) msg = msg.slice(0, 500) + '…';\n\nconst nodo = ex.lastNodeExecuted || 'desconocido';\nconst nombre = wf.name || 'sin nombre';\nlet texto = '⚠️ <b>Error en flujo: ' + esc(nombre) + '</b>\\n'\n  + 'Nodo: ' + esc(nodo) + '\\n'\n  + 'Mensaje: ' + esc(msg);\nif (ex.id && wf.id) {\n  const url = 'https://n8n.example.com/workflow/' + esc(wf.id) + '/executions/' + esc(ex.id);\n  texto += '\\n<a href=\"' + url + '\">Ver ejecución</a>';\n}\nreturn [{ json: { aviso: texto } }];\n"
+      },
+      "id": "2e73fa40-2440-4fdf-b60f-36022b7bc37c",
+      "name": "Armar aviso",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "100000001",
+        "text": "={{ $json.aviso }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "e6cf2081-a03d-49cc-977c-9e15fcf26c8d",
+      "name": "Avisar a Admin",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Armar aviso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar aviso": {
+      "main": [
+        [
+          {
+            "node": "Avisar a Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota"
+  }
+}

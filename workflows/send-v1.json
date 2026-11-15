@@ -1,0 +1,2385 @@
+{
+  "name": "Cuentas - Enviar v1",
+  "description": "T-047. Enviar Telegram o WhatsApp con copia al grupo. Entrada: canal/destino/texto(string HTML), botones(array), editarMessageId/replyTo/nombre opcionales. Salida: ok(boolean), canal, messageId(number|null de Telegram), wamid(string|null). Efectos externos: enviar/editar; sin estado persistente (T-048 pendiente).",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "canal",
+              "type": "string"
+            },
+            {
+              "name": "destino",
+              "type": "string"
+            },
+            {
+              "name": "texto",
+              "type": "string"
+            },
+            {
+              "name": "botones",
+              "type": "array"
+            },
+            {
+              "name": "editarMessageId",
+              "type": "string"
+            },
+            {
+              "name": "replyTo",
+              "type": "string"
+            },
+            {
+              "name": "nombre",
+              "type": "string"
+            },
+            {
+              "name": "sinCopia",
+              "type": "boolean"
+            }
+          ]
+        }
+      },
+      "id": "90ececad-fa0d-4033-8517-9aceba062ab4",
+      "name": "Entrada de envío",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Único punto de configuración. No guardar tokens aquí.\nreturn [{ json: { ...$input.first().json, graphVersion: 'v25.0', phoneNumberId: '100000000000000', grupoTelegram: -1001234567890 }, pairedItem: { item: 0 } }];"
+      },
+      "id": "740a1876-b74d-4056-a637-1110d6807911",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// HTML ya escapado en Apps Script: mismo blindaje que v6, sin escapar dos veces.\nconst norm = (s) => String(s ?? '').replace(/&(?!(amp|lt|gt|quot|#\\d+);)/g, '&amp;').replace(/<(?!\\/?(b|i|u|s|code|pre)>|a href=\"[^\"]*\">|\\/a>)/g, '&lt;') || '(sin texto)';\nconst r = $input.first().json;\nconst canal = r.canal || 'telegram';\n// Solo true booleano o su representación textual activan sinCopia.\nconst sinCopia = r.sinCopia === true || r.sinCopia === 'true';\nif (!['telegram', 'whatsapp'].includes(canal)) throw new Error('Canal inválido');\nconst destino = String(r.destino ?? '').trim();\nif (!destino || (canal === 'whatsapp' && !/^\\d+$/.test(destino))) throw new Error('Destino inválido');\nconst botones = r.botones == null ? [] : r.botones;\nif (!Array.isArray(botones) || botones.some(b => !b || typeof b.text !== 'string' || !b.text.trim() || typeof b.callback_data !== 'string' || !b.callback_data || Buffer.byteLength(b.callback_data) > 64)) throw new Error('Botones inválidos');\nconst editar = r.editarMessageId == null || r.editarMessageId === '' ? null : Number(r.editarMessageId);\nif (editar !== null && (!Number.isSafeInteger(editar) || editar <= 0)) throw new Error('editarMessageId debe ser el ID numérico de Telegram (restauración WA: T-048)');\nreturn [{ json: { ...r, canal, sinCopia, destino, texto: norm(r.texto), botones, editarMessageId: editar, waOk: true, wamid: null, messageId: null, telegramOk: true }, pairedItem: { item: 0 } }];"
+      },
+      "id": "5d2ed37d-6047-494c-bc64-b196433ee806",
+      "name": "Preparar envío",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "36eb7f90-f318-465b-a94a-a32725d486a9",
+              "leftValue": "={{ $json.canal === 'whatsapp' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d7973e4a-97f6-4b9c-b7c1-2ab000803552",
+      "name": "¿Canal WhatsApp?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function aWhatsApp(html) {\n  return String(html)\n    .replace(/<\\/?(b|strong)>/g, '*').replace(/<\\/?(i|em)>/g, '_').replace(/<\\/?(s|del)>/g, '~')\n    .replace(/<\\/?(code|pre)>/g, '```').replace(/<a href=\"([^\"]+)\">([^<]*)<\\/a>/g, '$2: $1')\n    .replace(/<[^>]+>/g, '')\n    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');\n}\n// T-048: guardar texto plano del original, sin cabecera de la copia ni marcas de WhatsApp.\nconst r = $input.first().json;\nconst texto = aWhatsApp(r.texto);\nconst textoContexto = String(r.texto).replace(/<a href=\"([^\"]+)\">([^<]*)<\\/a>/g, '$2: $1')\n  .replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>')\n  .replace(/&quot;/g, '\"').replace(/&#39;/g, \"'\")\n  .replace(/&#(\\d+);/g, (m, n) => Number(n) <= 0x10ffff ? String.fromCodePoint(Number(n)) : m)\n  .replace(/&amp;/g, '&').slice(0, 1000);\nconst chars = s => Array.from(s);\nconst base = { messaging_product: 'whatsapp', recipient_type: 'individual', to: r.destino };\nif (r.replyTo) base.context = { message_id: String(r.replyTo) };\nconst colaWA = [];\nconst agregarTexto = s => { const c = chars(s); for (let i = 0; i < c.length; i += 4096) colaWA.push({ ...base, type: 'text', text: { body: c.slice(i, i + 4096).join('') } }); };\n// No descartar opciones ni cambiar callback_data. Más de 10 es un error visible en la copia.\nif (r.botones.length > 10) return [{ json: { ...r, textoContexto, waEnviados: [], colaWA, waPos: 0, waOk: false }, pairedItem: { item: 0 } }];\nif (!r.botones.length) agregarTexto(texto);\nelse {\n  const corto = chars(texto).length <= 1024;\n  if (!corto) agregarTexto(texto);\n  const limite = r.botones.length <= 3 ? 20 : 24;\n  const usados = new Set();\n  const titulo = (s, i) => {\n    s = aWhatsApp(s).replace(/\\s+/g, ' ').trim() || 'Opción ' + (i + 1);\n    let t = chars(s).slice(0, limite).join('');\n    if (chars(s).length > limite) {\n      const p = t.lastIndexOf(' ');\n      t = (p >= limite / 2 ? t.slice(0, p) : chars(t).slice(0, limite - 1).join('')) + '…';\n    }\n    if (usados.has(t)) { const suf = ' ' + (i + 1); t = chars(t).slice(0, limite - suf.length).join('') + suf; }\n    usados.add(t); return t;\n  };\n  const interactive = { type: r.botones.length <= 3 ? 'button' : 'list', body: { text: corto ? texto : 'Seleccione una opción para el mensaje anterior.' } };\n  if (r.botones.length <= 3) interactive.action = { buttons: r.botones.map((b, i) => ({ type: 'reply', reply: { id: b.callback_data, title: titulo(b.text, i) } })) };\n  else interactive.action = { button: 'Ver opciones', sections: [{ title: 'Opciones', rows: r.botones.map((b, i) => ({ id: b.callback_data, title: titulo(b.text, i) })) }] };\n  colaWA.push({ ...base, type: 'interactive', interactive });\n}\nreturn [{ json: { ...r, textoContexto, waEnviados: [], colaWA, waPos: 0 }, pairedItem: { item: 0 } }];"
+      },
+      "id": "90adee1e-00d5-46a0-a628-4622874f8827",
+      "name": "Preparar WhatsApp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4f02f7aa-eb65-4dcc-b47c-8b1c7b957c66",
+              "leftValue": "={{ $json.waPos < $json.colaWA.length }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "656ebae1-8727-4b66-8e70-da4f01d16470",
+      "name": "¿Queda WhatsApp?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1100,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: { ...r, solicitudWA: r.colaWA[r.waPos] }, pairedItem: { item: 0 } }];"
+      },
+      "id": "44fbb3d4-676f-4de2-bfa4-bb2d800298c6",
+      "name": "Siguiente WhatsApp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        -360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://graph.facebook.com/' + $json.graphVersion + '/' + $json.phoneNumberId + '/messages' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.solicitudWA) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "c2233647-1df4-429a-8346-aa7ba7fa84b2",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1540,
+        -360
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WhatsApp account"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $('Siguiente WhatsApp').itemMatching(0).json;\nconst j = $input.first().json;\nconst id = !j.error && typeof j.messages?.[0]?.id === 'string' && j.messages[0].id;\n// Conservar TODOS los wamids aceptados, incluso si falla otra parte del envío.\n// Un fragmento de texto no ofrece botones: no aceptar callbacks sobre ese wamid.\nconst waEnviados = [...(r.waEnviados || [])];\nif (id && !waEnviados.some(e => e.wamid === id)) {\n  const q = r.solicitudWA?.interactive;\n  const botones = q?.type === 'button' ? q.action.buttons.map(b => b.reply.id)\n    : q?.type === 'list' ? q.action.sections.flatMap(s => s.rows.map(b => b.id)) : [];\n  waEnviados.push({ wamid: id, botones, ts: new Date().toISOString() });\n}\n// No propagar cuerpos de error del proveedor.\nreturn [{ json: { ...r, waEnviados, waOk: r.waOk && !!id, wamid: id || r.wamid, waPos: r.waPos + 1 }, pairedItem: { item: 0 } }];"
+      },
+      "id": "595dcdae-4e0a-4c80-98fa-f4dcd28d659d",
+      "name": "Acumular WhatsApp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        -360
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\n// T-052: cola vacía evita tanto envío/edición como aviso de fallo Meta al grupo.\nif (r.sinCopia === true) return [{ json: { ...r, colaTG: [], tgPos: 0, avisoTG: false }, pairedItem: { item: 0 } }];\nconst esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst cabecera = '<b>🤖 Bot → ' + esc(r.nombre || 'Usuario') + ' (' + esc(r.destino) + ')</b>\\n';\nconst opciones = r.botones.length ? '\\n\\nOpciones: ' + r.botones.map(b => esc(b.text)).join(' · ') : '';\nconst texto = (r.waOk ? '' : '⚠️ No se pudo entregar por WhatsApp\\n') + r.texto + opciones;\n// Copia completa, incluso con texto WA largo. Se cierran/reabren etiquetas al dividir;\n// el límite conservador cuenta caracteres del HTML, además de reservar la cabecera.\nfunction dividirHTML(s, limite) {\n  const out = [], stack = []; let parte = '';\n  const cierres = () => stack.slice().reverse().map(t => '</' + t.nombre + '>').join('');\n  const aperturas = () => stack.map(t => t.token).join('');\n  for (const token of s.match(/<[^>]+>|&(?:amp|lt|gt|quot|#\\d+);|[\\s\\S]/gu) || []) {\n    if (parte.length + token.length + cierres().length + 16 > limite) {\n      out.push(parte + cierres()); parte = aperturas();\n    }\n    if (token.length > limite / 2) throw new Error('Etiqueta HTML excesiva');\n    parte += token;\n    const ini = /^<(b|i|u|s|code|pre|a)(?:\\s[^>]*)?>$/.exec(token);\n    const fin = /^<\\/(b|i|u|s|code|pre|a)>$/.exec(token);\n    if (ini) stack.push({ nombre: ini[1], token });\n    if (fin && stack.length && stack[stack.length - 1].nombre === fin[1]) stack.pop();\n  }\n  if (parte) out.push(parte + cierres());\n  return out;\n}\nconst cab = cabecera;\nconst colaTG = dividirHTML(texto, 3900 - cab.length).map((p, i) => ({ chatId: r.grupoTelegram, texto: cab + p, editarMessageId: i === 0 ? r.editarMessageId : null, replyTo: null, botones: [] }));\nreturn [{ json: { ...r, colaTG, tgPos: 0, avisoTG: false }, pairedItem: { item: 0 } }];"
+      },
+      "id": "4242a5ef-0623-4203-a398-7c9a1c2e2b78",
+      "name": "Preparar copia Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\n// Lista plana: los Switch eligen teclados fixedCollection estáticos como en v6.\nconst colaTG = [{ chatId: r.destino, texto: r.texto, editarMessageId: r.editarMessageId, replyTo: r.replyTo || null, botones: r.botones.map(b => ({ ...b })) }];\n// El texto contiene &amp; / &lt; / &gt; desde Preparar envío (HTML ya escapado).\nreturn [{ json: { ...r, colaTG, tgPos: 0, avisoTG: false }, pairedItem: { item: 0 } }];"
+      },
+      "id": "8e7c8cac-7ffb-41af-823b-245821c4c3c8",
+      "name": "Preparar Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nconst s = r.colaTG[r.tgPos];\n// &amp;: texto HTML preparado aguas arriba, no volver a escapar etiquetas intencionales.\nreturn [{ json: { ...r, solicitudTG: s, texto: s.texto }, pairedItem: { item: 0 } }];"
+      },
+      "id": "091443b5-eb4e-4e3b-a877-073e63df7c31",
+      "name": "Siguiente Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "efdd26ab-5921-435c-aa9f-3b4390fcb7ad",
+              "leftValue": "={{ !!$json.solicitudTG.editarMessageId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fec6c22a-1e13-4fc0-ac8d-cf97187907af",
+      "name": "¿Editar Telegram?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1760,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $json.solicitudTG.chatId }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML",
+          "reply_to_message_id": "={{ $json.solicitudTG.replyTo || undefined }}"
+        },
+        "operation": "sendMessage"
+      },
+      "id": "a4d958a4-b6a3-401b-a1d7-1bf519e89e51",
+      "name": "Enviar Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        380
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $json.solicitudTG.chatId }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        },
+        "operation": "editMessageText",
+        "messageType": "message",
+        "messageId": "={{ $json.solicitudTG.editarMessageId }}"
+      },
+      "id": "76cb0511-928d-4c21-b644-c36d027c6a57",
+      "name": "Editar Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        -400
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $('Siguiente Telegram').itemMatching(0).json;\nconst j = $input.first().json;\nconst id = !j.error && (j.result?.message_id || j.message_id);\n// Un reintento de edición idéntica devuelve 400: el estado deseado ya existe.\n// Se reconoce solo ese error concreto; ningún otro fallo se trata como éxito.\nconst sinCambios = !!r.solicitudTG.editarMessageId && /message is not modified/i.test(String(j.error?.message || j.error?.description || j.error || j.message || j.description || ''));\nconst mensaje = id || (sinCambios ? r.solicitudTG.editarMessageId : null);\nreturn [{ json: { ...r, telegramOk: r.telegramOk && !!mensaje, messageId: r.avisoTG ? r.messageId : (r.messageId || mensaje || null), tgPos: r.tgPos + 1 }, pairedItem: { item: 0 } }];"
+      },
+      "id": "05b758fd-1443-463b-a27a-3c1a22cacf35",
+      "name": "Acumular Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2660,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "75e731e5-d54b-40f5-903e-3dd579140d8b",
+              "leftValue": "={{ $json.tgPos < $json.colaTG.length }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e3428122-27b1-4c4d-8508-cc4334ecfcf4",
+      "name": "¿Queda Telegram?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2880,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "420bd210-b2a1-4099-bf60-a39a23e56726",
+              "leftValue": "={{ !$json.telegramOk && !$json.avisoTG }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d3cddc3a-4f6f-4f32-8a07-5f8e895a7608",
+      "name": "¿Avisar fallo Telegram?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3100,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\n// Mensaje fijo: no filtrar errores HTTP ni secretos al grupo. &amp; para texto HTML seguro.\nconst colaTG = [{ chatId: r.grupoTelegram, texto: '⚠️ Falló el envío o la copia del bot de cuentas. Revise la ejecución en n8n.', editarMessageId: null, replyTo: null, botones: [] }];\nreturn [{ json: { ...r, colaTG, tgPos: 0, avisoTG: true }, pairedItem: { item: 0 } }];"
+      },
+      "id": "d1a5d47f-8595-44c6-affe-2e5c9be4be31",
+      "name": "Preparar aviso de error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3320,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nconst esWA = r.canal === 'whatsapp';\nconst copiaOk = esWA && r.sinCopia !== true ? r.telegramOk === true : null;\nreturn [{ json: {\n  ok: esWA ? r.waOk === true : r.telegramOk === true,\n  canal: r.canal,\n  messageId: esWA && copiaOk !== true ? null : (r.messageId || null),\n  wamid: esWA ? (r.wamid || null) : null,\n  copiaOk\n}, pairedItem: { item: 0 } }];"
+      },
+      "id": "e4f803a1-d1b4-4ad2-bed8-5a4c6ef83ac0",
+      "name": "Salida",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3320,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "content": "T-047 · Typed input: canal, destino, HTML texto, botones [{text, callback_data}]; optional editarMessageId/replyTo/nombre/sinCopia (sinCopia is boolean, default false). One output: {ok, canal, messageId, wamid, copiaOk}. Call mode=each and wait. Telegram: Switch 0/2/3/4/6 with fixed native keyboards (three rows for 3; pairs for 2/4/6); other counts → Botones inválidos, HTML without attribution. WhatsApp: sequential queue (4096 text / 1024 interactive), then full group copy without buttons. Each WA failure marks the copy; a TG failure attempts a fixed group alert. T-052: ok reflects only the main channel. copiaOk reports the WA copy result (true/false; null for Telegram or sinCopia). sinCopia suppresses all group output, including context-error alerts. messageId is the first complete copy (or edited message); null without a copy or after copy failure, never the alert. T-049: media pending. More than 10 WA options are not silently truncated: mark failure and copy all options to the group. Network retries may duplicate delivery if the provider accepted a request but its response was lost.\n\nT-048: wa_contexto (wamid, datos string) and wa_candados (clave, ejecucion string). Sequentially persist all successful wamids with or without a copy; tgMessageId only after a successful full copy; plain text <=1000 and buttons only from the message offering them. A persistence failure sends a one-line alert and preserves the delivery result. Daily cleanup at 03:15 America/Bogota: createdAt < now−7 days / now−1 day. Do not create system or extra columns. Configure both Data Table placeholders and publish this subworkflow to enable its schedule.",
+        "height": 480,
+        "width": 700
+      },
+      "id": "260e8331-73fa-4829-94c7-cff7704e167e",
+      "name": "Contrato y pendientes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -620
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "eb080238-f6c4-4916-9843-0cf6f7decb02",
+                    "leftValue": "={{ $json.solicitudTG.botones.length }}",
+                    "rightValue": 0,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sin botones"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "70521944-8516-4899-8033-10354ea6c93b",
+                    "leftValue": "={{ $json.solicitudTG.botones.length }}",
+                    "rightValue": 2,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "2 botones"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "f4172f64-017a-4004-916a-5a03a104434a",
+                    "leftValue": "={{ $json.solicitudTG.botones.length }}",
+                    "rightValue": 3,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "3 botones"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "28ec3304-c734-4f5b-979a-8d288055d953",
+                    "leftValue": "={{ $json.solicitudTG.botones.length }}",
+                    "rightValue": 4,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "4 botones"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "33137fe5-9e41-4510-bf70-0f1aa1cefe61",
+                    "leftValue": "={{ $json.solicitudTG.botones.length }}",
+                    "rightValue": 6,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "6 botones"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "fb7a71bf-1d9a-4476-8835-ea9c43530c8f",
+      "name": "¿Cuántos botones? (envío)",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1980,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $json.solicitudTG.chatId }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML",
+          "reply_to_message_id": "={{ $json.solicitudTG.replyTo || undefined }}"
+        },
+        "operation": "sendMessage",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[0].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[0].callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.solicitudTG.botones[1].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[1].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "c0fedf52-b11f-4e7a-a2dd-84528f9bb6a6",
+      "name": "Enviar 2 botones",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        500
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $json.solicitudTG.chatId }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML",
+          "reply_to_message_id": "={{ $json.solicitudTG.replyTo || undefined }}"
+        },
+        "operation": "sendMessage",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[0].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[0].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[1].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[1].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[2].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[2].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "67c30072-7917-4438-b7b5-b08001905dbf",
+      "name": "Enviar 3 botones",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        620
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $json.solicitudTG.chatId }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML",
+          "reply_to_message_id": "={{ $json.solicitudTG.replyTo || undefined }}"
+        },
+        "operation": "sendMessage",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[0].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[0].callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.solicitudTG.botones[1].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[1].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[2].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[2].callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.solicitudTG.botones[3].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[3].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "8800594e-0170-4130-ac62-c1ee3227afaf",
+      "name": "Enviar 4 botones",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        740
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $json.solicitudTG.chatId }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML",
+          "reply_to_message_id": "={{ $json.solicitudTG.replyTo || undefined }}"
+        },
+        "operation": "sendMessage",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[0].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[0].callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.solicitudTG.botones[1].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[1].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[2].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[2].callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.solicitudTG.botones[3].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[3].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[4].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[4].callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.solicitudTG.botones[5].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[5].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "2e0f1c42-dc3a-4971-9d82-127b98196022",
+      "name": "Enviar 6 botones",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        860
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "0177d20b-7908-48de-90bf-bccee029877b",
+                    "leftValue": "={{ $json.solicitudTG.botones.length }}",
+                    "rightValue": 0,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sin botones"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "2127c6ed-2d3b-4821-b206-b3b2bd19ccf4",
+                    "leftValue": "={{ $json.solicitudTG.botones.length }}",
+                    "rightValue": 2,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "2 botones"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a20d116e-4178-4e39-a118-52b1b8523fc5",
+                    "leftValue": "={{ $json.solicitudTG.botones.length }}",
+                    "rightValue": 3,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "3 botones"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "829d9a52-5231-4a7b-8ea8-d573c140b3d5",
+                    "leftValue": "={{ $json.solicitudTG.botones.length }}",
+                    "rightValue": 4,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "4 botones"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "f5858691-3356-445a-b400-f4a49f1a652b",
+                    "leftValue": "={{ $json.solicitudTG.botones.length }}",
+                    "rightValue": 6,
+                    "operator": {
+                      "type": "number",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "6 botones"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "dce1f1df-f083-473a-a4df-6ab0b054d8b0",
+      "name": "¿Cuántos botones? (edición)",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1980,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $json.solicitudTG.chatId }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        },
+        "operation": "editMessageText",
+        "messageType": "message",
+        "messageId": "={{ $json.solicitudTG.editarMessageId }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[0].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[0].callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.solicitudTG.botones[1].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[1].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "59554c67-84ea-454f-b77e-ad8ab33d4ee9",
+      "name": "Editar 2 botones",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        -280
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $json.solicitudTG.chatId }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        },
+        "operation": "editMessageText",
+        "messageType": "message",
+        "messageId": "={{ $json.solicitudTG.editarMessageId }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[0].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[0].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[1].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[1].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[2].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[2].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "2d58de04-acdc-4a6f-819c-346f6fb43b0b",
+      "name": "Editar 3 botones",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        -160
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $json.solicitudTG.chatId }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        },
+        "operation": "editMessageText",
+        "messageType": "message",
+        "messageId": "={{ $json.solicitudTG.editarMessageId }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[0].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[0].callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.solicitudTG.botones[1].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[1].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[2].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[2].callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.solicitudTG.botones[3].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[3].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "48180f2f-ab5b-4db1-9990-c2b9d31cf18c",
+      "name": "Editar 4 botones",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        -40
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "chatId": "={{ $json.solicitudTG.chatId }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        },
+        "operation": "editMessageText",
+        "messageType": "message",
+        "messageId": "={{ $json.solicitudTG.editarMessageId }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[0].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[0].callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.solicitudTG.botones[1].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[1].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[2].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[2].callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.solicitudTG.botones[3].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[3].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $json.solicitudTG.botones[4].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[4].callback_data }}"
+                    }
+                  },
+                  {
+                    "text": "={{ $json.solicitudTG.botones[5].text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $json.solicitudTG.botones[5].callback_data }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "7c5d76b7-f056-448a-a90a-7f024b954b5c",
+      "name": "Editar 6 botones",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        80
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ 'Botones inválidos de Apps Script (cantidad: ' + $json.solicitudTG.botones.length + '; se esperan 0, 2, 3, 4 o 6)' }}"
+      },
+      "id": "530823f9-ab60-4a29-af0f-5ccdef6c5fe6",
+      "name": "Botones inválidos",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        2440,
+        1100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nconst enviados = r.canal === 'whatsapp' ? (r.waEnviados || []) : [];\nconst destino = String(r.destino || '').replace(/\\D/g, '');\n// T-052: el contexto existe aunque no haya copia; solo vincular una copia completa.\nconst conCopia = !r.sinCopia && r.telegramOk === true && Number.isSafeInteger(r.messageId) && r.messageId > 0;\nconst contextosWA = destino ? enviados.map(e => ({ wamid: e.wamid, datos: JSON.stringify({\n  destino, texto: String(r.textoContexto || '').slice(0, 1000), botones: e.botones,\n  ...(conCopia ? { tgMessageId: r.messageId } : {}), ts: e.ts\n}) })) : [];\nreturn [{ json: { ...r, contextosWA, contextoPos: 0, contextoError: enviados.length > 0 && !destino }, pairedItem: { item: 0 } }];"
+      },
+      "id": "bbac23de-9897-4547-8abb-b9c9bdbc1f38",
+      "name": "Preparar contextos WA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3550,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5611cac5-d3bd-42b9-8b2a-a2aabd864c96",
+              "leftValue": "={{ $json.contextoPos < $json.contextosWA.length }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3aa7d8e2-b627-405d-b0a5-7942edd88614",
+      "name": "¿Queda contexto WA?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3770,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nreturn [{ json: { ...r, contextoActual: r.contextosWA[r.contextoPos] }, pairedItem: { item: 0 } }];"
+      },
+      "id": "2b89be62-26a4-4663-8e0f-e52dbbab19f2",
+      "name": "Siguiente contexto WA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3990,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "i3fw7DJNkvpFtNMl"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "wamid": "={{ $json.contextoActual.wamid }}",
+            "datos": "={{ $json.contextoActual.datos }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "wamid",
+              "displayName": "wamid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "datos",
+              "displayName": "datos",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "200ff750-b0a7-40e9-aa7a-9fabaf932d6c",
+      "name": "Guardar contexto WA",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        4210,
+        300
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $('Siguiente contexto WA').itemMatching(0).json;\nconst j = $input.first().json;\nreturn [{ json: { ...r, contextoPos: r.contextoPos + 1, contextoError: r.contextoError || !!j.error || !j.id }, pairedItem: { item: 0 } }];"
+      },
+      "id": "402658ee-7ba9-4aeb-8248-7c22ab0d8cd6",
+      "name": "Acumular contexto WA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4430,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b66c766b-cee0-4a47-85d2-45adc72a6e94",
+              "leftValue": "={{ $json.contextoError === true && !($json.canal === 'whatsapp' && $json.sinCopia === true) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "834957de-01ba-42f6-b3f7-038c9c6d5b50",
+      "name": "¿Falló contexto WA?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3990,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "-1001234567890",
+        "text": "⚠️ No se pudo guardar el vínculo WhatsApp del bot de cuentas; revise la ejecución en n8n.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "0fdcf720-6a4b-4002-a9e1-a88f9d6ff1b9",
+      "name": "Avisar fallo contexto WA",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4210,
+        620
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// El fallo del contexto y hasta el fallo del aviso NO cambian el contrato del envío.\nreturn [{ json: $('¿Falló contexto WA?').first().json, pairedItem: { item: 0 } }];"
+      },
+      "id": "48d91874-41b3-454b-b8f9-45bda7db9448",
+      "name": "Conservar respuesta WA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4430,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "15 3 * * *"
+            }
+          ]
+        }
+      },
+      "id": "25847b0c-8136-4908-a6ab-73dc516a6003",
+      "name": "Limpieza WA diaria",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        1100
+      ],
+      "notes": "Two independent branches: each table is cleaned once even if the other deletion returns many rows or fails."
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "i3fw7DJNkvpFtNMl"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "createdAt",
+              "condition": "lt",
+              "keyValue": "={{ $now.minus({ days: 7 }).toUTC().toISO() }}"
+            }
+          ]
+        },
+        "options": {
+          "dryRun": false
+        }
+      },
+      "id": "837e5e77-317a-4720-a789-e1103e36a068",
+      "name": "Limpiar contextos WA",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        1100
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "deleteRows",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "DEsFrTu6V0C8W2pX"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "createdAt",
+              "condition": "lt",
+              "keyValue": "={{ $now.minus({ days: 1 }).toUTC().toISO() }}"
+            }
+          ]
+        },
+        "options": {
+          "dryRun": false
+        }
+      },
+      "id": "5cb227bb-84fc-4c17-98f2-b19284fbc5c0",
+      "name": "Limpiar candados WA",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        1100
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "-1001234567890",
+        "text": "⚠️ Falló la limpieza diaria de estado WhatsApp del bot de cuentas; revise la ejecución en n8n.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "09ebe684-347b-4147-b10d-c18ed9bdae72",
+      "name": "Avisar fallo limpieza WA",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        1300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {},
+      "id": "0a9c8dc2-2811-4fed-86e3-5409f999562f",
+      "name": "Fin limpieza WA",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        960,
+        1100
+      ]
+    }
+  ],
+  "connections": {
+    "Entrada de envío": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Preparar envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar envío": {
+      "main": [
+        [
+          {
+            "node": "¿Canal WhatsApp?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Canal WhatsApp?": {
+      "main": [
+        [
+          {
+            "node": "Preparar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "¿Queda WhatsApp?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Queda WhatsApp?": {
+      "main": [
+        [
+          {
+            "node": "Siguiente WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar copia Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Siguiente WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Acumular WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acumular WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acumular WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "¿Queda WhatsApp?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar copia Telegram": {
+      "main": [
+        [
+          {
+            "node": "¿Queda Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Telegram": {
+      "main": [
+        [
+          {
+            "node": "Siguiente Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Siguiente Telegram": {
+      "main": [
+        [
+          {
+            "node": "¿Editar Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Editar Telegram?": {
+      "main": [
+        [
+          {
+            "node": "¿Cuántos botones? (edición)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Cuántos botones? (envío)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Telegram": {
+      "main": [
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Editar Telegram": {
+      "main": [
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acumular Telegram": {
+      "main": [
+        [
+          {
+            "node": "¿Queda Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Queda Telegram?": {
+      "main": [
+        [
+          {
+            "node": "Siguiente Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Avisar fallo Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Avisar fallo Telegram?": {
+      "main": [
+        [
+          {
+            "node": "Preparar aviso de error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar contextos WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar aviso de error": {
+      "main": [
+        [
+          {
+            "node": "Siguiente Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar 2 botones": {
+      "main": [
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar 3 botones": {
+      "main": [
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar 4 botones": {
+      "main": [
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar 6 botones": {
+      "main": [
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Cuántos botones? (envío)": {
+      "main": [
+        [
+          {
+            "node": "Enviar Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar 2 botones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar 3 botones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar 4 botones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enviar 6 botones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Botones inválidos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Editar 2 botones": {
+      "main": [
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Editar 3 botones": {
+      "main": [
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Editar 4 botones": {
+      "main": [
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Editar 6 botones": {
+      "main": [
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acumular Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Cuántos botones? (edición)": {
+      "main": [
+        [
+          {
+            "node": "Editar Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Editar 2 botones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Editar 3 botones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Editar 4 botones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Editar 6 botones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Botones inválidos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar contextos WA": {
+      "main": [
+        [
+          {
+            "node": "¿Queda contexto WA?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Queda contexto WA?": {
+      "main": [
+        [
+          {
+            "node": "Siguiente contexto WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Falló contexto WA?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Siguiente contexto WA": {
+      "main": [
+        [
+          {
+            "node": "Guardar contexto WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar contexto WA": {
+      "main": [
+        [
+          {
+            "node": "Acumular contexto WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Acumular contexto WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acumular contexto WA": {
+      "main": [
+        [
+          {
+            "node": "¿Queda contexto WA?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Falló contexto WA?": {
+      "main": [
+        [
+          {
+            "node": "Avisar fallo contexto WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Salida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar fallo contexto WA": {
+      "main": [
+        [
+          {
+            "node": "Conservar respuesta WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Conservar respuesta WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conservar respuesta WA": {
+      "main": [
+        [
+          {
+            "node": "Salida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpieza WA diaria": {
+      "main": [
+        [
+          {
+            "node": "Limpiar contextos WA",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Limpiar candados WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiar contextos WA": {
+      "main": [
+        [
+          {
+            "node": "Fin limpieza WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar fallo limpieza WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiar candados WA": {
+      "main": [
+        [
+          {
+            "node": "Fin limpieza WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar fallo limpieza WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar fallo limpieza WA": {
+      "main": [
+        [
+          {
+            "node": "Fin limpieza WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin limpieza WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "errorWorkflow": "YOUR_ERROR_WORKFLOW_ID"
+  }
+}

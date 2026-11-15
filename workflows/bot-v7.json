@@ -1,0 +1,3089 @@
+{
+  "name": "Cuentas - Bot v7",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "id": "c96f04a3-7fbc-5eac-ac71-d338cbcd2a3a",
+      "name": "Mensaje de Telegram",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ],
+      "webhookId": "00000000-0000-4000-8000-000000000101",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ accion: 'procesar', update: ($('Armar archivo').isExecuted && $('Armar archivo').first().json.archivoErrorWA ? $('Armar archivo').first().json.updateSinArchivo : $('Datos del mensaje').first().json.update), ia: null, archivo: ($('Armar archivo').isExecuted ? ($('Armar archivo').first().json.archivo || undefined) : undefined), ejecucion: String($execution.id), medio: ($('Armar archivo').isExecuted && $('Armar archivo').first().json.archivoErrorWA ? undefined : $('Datos del mensaje').first().json.medio) }) }}",
+        "options": {
+          "timeout": 30000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 5
+            }
+          }
+        }
+      },
+      "id": "bd37442f-2433-53b5-aaea-bd0e98702f41",
+      "name": "Procesar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1200,
+        200
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Apps Script VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b62a1b6f-4ffa-5334-a5c2-a25b902d1057",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "ignorar",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ignorar"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "3fffa16c-9e7e-583b-82b9-5c0f8dec1b23",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "error",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "error"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "4d1c7668-1860-5355-8e00-edfe21009a63",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "pedirIA",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "pedirIA"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d58bd87c-a3a3-528d-a47d-7e0c0f4d0cde",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "responder",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "responder"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a1111111-0000-4000-8000-000000000007",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "aviso",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "aviso"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "6ab847fd-6b15-503c-ad3b-11596bbf61fd",
+      "name": "Tipo de respuesta",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1440,
+        200
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "880f3b51-f076-50b8-9dff-d1480ac178b1",
+      "name": "Ignorar (fin)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ 'Apps Script respondió error: ' + ($json.texto || $json.codigo || 'sin detalle') }}"
+      },
+      "id": "f31c0be9-ed50-5d40-9f7b-f4c6532de840",
+      "name": "Terminar con error",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ 'Respuesta inesperada de Apps Script (tipo: ' + ($json.tipo || 'ninguno') + ')' }}"
+      },
+      "id": "973a1bad-b3f2-589b-ba99-ff098752e2b2",
+      "name": "Respuesta inesperada",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ role: 'user', parts: [{ text: $('Procesar').first().json.prompt }] }], generationConfig: { temperature: 0.1, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: 'minimal' } } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "9ab0fe75-ee6d-5576-9d31-7df2673ba262",
+      "name": "IA texto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2400,
+        200
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gemini VehicleLedger"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 500
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ role: 'user', parts: [{ text: $('Procesar').first().json.prompt }] }], generationConfig: { temperature: 0.1, responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: 'minimal' } } }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "66f89d43-d9d7-5d1a-92b4-45f8b3ecf559",
+      "name": "IA texto respaldo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2880,
+        200
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gemini VehicleLedger"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 500
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lleva la salida de Gemini a `ia`. Descarta partes `thought`. Texto/JSON basura o error => {} (Apps Script responde \"no entendi\"). Sin bucles.\nconst j = $input.first().json || {};\nlet ia = {};\nif (!j.error) {\n  const partes = (j.content && j.content.parts) || j.parts || (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];\n  let t = Array.isArray(partes) ? partes.filter((p) => p && !p.thought).map((p) => p.text || '').join('') : '';\n  if (!t && typeof j.text === 'string') t = j.text;\n  if (!t && typeof j.content === 'string') t = j.content;\n  t = t.replace(/```json|```/g, '').trim();\n  const a = t.indexOf('{'), b = t.lastIndexOf('}');\n  if (a >= 0 && b > a) {\n    try { const p = JSON.parse(t.slice(a, b + 1)); if (p && typeof p === 'object' && !Array.isArray(p)) ia = p; } catch (e) { /* basura => {} */ }\n  }\n}\nreturn [{ json: { ia } }];"
+      },
+      "id": "72d3448a-fa21-5a97-8fba-db950777f249",
+      "name": "Armar IA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ accion: 'procesar', update: $('Datos del mensaje').first().json.update, ia: $json.ia, archivo: ($('Armar archivo').isExecuted ? ($('Procesar').first().json.archivoIA ? Object.assign({}, $('Armar archivo').first().json.archivo, { base64: $('Procesar').first().json.archivoIA.base64 }) : ($('Armar archivo').first().json.archivo || undefined)) : undefined), ejecucion: String($execution.id), medio: $('Datos del mensaje').first().json.medio }) }}",
+        "options": {
+          "timeout": 30000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 5
+            }
+          }
+        }
+      },
+      "id": "7d784723-93da-589d-aa73-369f7081dddd",
+      "name": "Procesar con IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        3360,
+        380
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Apps Script VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 500
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a85c233d-ff29-5563-a7b2-6b43c50f8794",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "ignorar",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ignorar"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "389cd005-9db5-55a3-a936-aa812b344b7d",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "error",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "error"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "2ce1c6b1-1b06-5661-8396-6ed7cdc30184",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "responder",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "responder"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a2222222-0000-4000-8000-000000000007",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "aviso",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "aviso"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "da700ca4-c9d2-58e6-8ec9-40379b28a59d",
+      "name": "Tipo de respuesta con IA",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        3600,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a9e95d07-6809-569c-9b30-08341f9c0f7a",
+              "leftValue": "={{ !!$json.callbackId && ($('Datos del mensaje').first().json.update.canal || 'telegram') === 'telegram' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a9e95d07-6809-569c-9b30-08341f9c0f7a",
+      "name": "¿Es callback?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3840,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $json.callbackId }}",
+        "additionalFields": {}
+      },
+      "id": "88460bd9-2146-5f8e-8176-85deaff6566a",
+      "name": "Responder callback",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4080,
+        120
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {},
+      "id": "7f303745-8279-5f8e-b838-82cee760fc7b",
+      "name": "Fin: sin callback",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        4080,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Apps Script decide el negocio; este nodo solo adapta el contrato de transporte.\nconst norm = (s) => String(s ?? '').replace(/&(?!(amp|lt|gt|quot|#\\d+);)/g, '&amp;').replace(/<(?!\\/?(b|i|u|s|code|pre)>|a href=\"[^\"]*\">|\\/a>)/g, '&lt;') || '(sin texto)';\nconst esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst r = $input.first().json || {};\nconst raw = $('Datos del mensaje').first().json.update || {};\nconst u = raw.update || raw;\nconst canal = u.canal || 'telegram';\nconst chatId = r.chatId ?? u.callback_query?.message?.chat?.id ?? u.message?.chat?.id;\nif (!['telegram', 'whatsapp'].includes(canal)) throw new Error('Canal inválido');\nconst destino = canal === 'whatsapp' ? u.wa?.from : chatId;\nif (destino === undefined || destino === null || destino === '') throw new Error('Destino ausente');\nconst botones = r.botones == null ? [] : r.botones;\nif (!Array.isArray(botones) || botones.some(b => !b || !b.text || !b.callback_data || Buffer.byteLength(String(b.callback_data)) > 64)) throw new Error('Botones inválidos');\nreturn [{ json: { canal, destino: String(destino), texto: r.tipo === 'aviso' ? esc(r.texto) : norm(r.texto), botones: botones.map(b => ({ text: String(b.text), callback_data: String(b.callback_data) })), editarMessageId: r.editarMensajeId == null ? '' : String(r.editarMensajeId), replyTo: r.replyTo ? String(canal === 'whatsapp' ? (u.wa?.wamid || '') : r.replyTo) : '', nombre: u.wa?.nombre || '', chatId, registroIds: Array.isArray(r.registroIds) ? r.registroIds : [], esEdicion: !!r.editarMensajeId }, pairedItem: { item: 0 } }];"
+      },
+      "id": "2e4875a9-038b-43dd-bb87-3b460c898ba6",
+      "name": "Armar mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4080,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4cb50be0-a486-4c45-a0e4-ac12e0c77e89",
+              "leftValue": "={{ Number.isSafeInteger($json.messageId) && $json.messageId > 0 && !$('Armar mensaje').first().json.esEdicion && $('Armar mensaje').first().json.registroIds.length > 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9db6c9d4-812d-40a7-8c0b-bde94dce85c9",
+      "name": "¿Vincular?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4800,
+        1220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ accion: 'vincular', registroIds: $('Armar mensaje').first().json.registroIds, mensajeBotId: $json.messageId, chatId: $('Armar mensaje').first().json.chatId }) }}",
+        "options": {
+          "timeout": 30000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 5
+            }
+          }
+        }
+      },
+      "id": "db9e8346-4f51-52c5-8eb9-e63fdbdf9e82",
+      "name": "Vincular",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        5040,
+        1220
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Apps Script VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {},
+      "id": "4a36fd36-3a8b-48b7-a867-d4c8a1e009c8",
+      "name": "Fin: sin vínculo",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        5040,
+        1380
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Import v6\n1. Unpublish v5 (same bot) BEFORE publishing v6. Keep v1–v5 exports.\n2. Import; select Apps Script VehicleLedger in Procesar, Procesar con IA, and Vincular; confirm the /exec URL.\n3. Reassign Telegram and Gemini credentials (IA texto uses HTTP Google Gemini(PaLM) Api authentication). Error workflow: cuentas-errores-v1.\n4. T-019: deploy Apps Script with Pdf.gs FIRST. The bot unlocks password-protected PDFs using the vehicle plate and returns archivoIA for Recuperar archivo/PDF and Procesar con IA. Without Pdf.gs this follows the v5 path.\n5. Publish and test text, buttons, voice, photos, PDFs, and password-protected PDFs (SOAT).",
+        "height": 260,
+        "width": 520,
+        "color": 7
+      },
+      "id": "c9de6213-a032-5a4b-9366-dd15ca1a2648",
+      "name": "Importar v6",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -420
+      ]
+    },
+    {
+      "id": "6dd87ece-a910-4599-a39e-309a36bd85f1",
+      "name": "¿Vinculó bien?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5280,
+        1220
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8f2a2078-2b81-47eb-92b2-49a332e8265a",
+              "leftValue": "={{ $json.tipo === 'ok' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f37de143-3315-41e7-b283-df747a9d1600",
+      "name": "Fin: vinculado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        5520,
+        1140
+      ],
+      "parameters": {}
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "66654766-805d-5a69-8f82-26d4a10d4bbe",
+              "leftValue": "={{ ((u) => (u.canal || 'telegram') === 'telegram' && !!u.message && u.message.chat?.id === -1001234567890)($json.update || $json) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f584864d-5d88-59b5-93b0-b58bbdb75437",
+      "name": "¿Escribir?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        240,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendChatAction",
+        "chatId": "={{ ($json.update || $json).message.chat.id }}"
+      },
+      "id": "ff9e90d3-cfc6-5bc5-a2fb-eae20fecfc1b",
+      "name": "Escribiendo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        480,
+        520
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "e29d5717-9695-54f4-8c7b-65fde2305d18",
+      "name": "Fin: no escribe",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        480,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepara el update (caption => texto) y decide si hay archivo que descargar: voz/audio, foto (la mayor <= 1 MB; si ninguna, la menor) o documento imagen/PDF <= 10 MB.\nconst MAX = 10 * 1024 * 1024;\nconst FOTO_MAX = 1024 * 1024;\nconst raw = $input.first().json || {};\nconst upd = raw.update && typeof raw.update === 'object' ? raw.update : raw;\nconst m = upd.message;\nlet archivoInfo = null;\nlet update = upd;\nlet medio;\nconst tam = (f) => f.file_size || (f.width || 0) * (f.height || 0) || 0;\n// T-049: el adaptador WA entrega un solo medio, sin tamaño ni resoluciones.\nif (upd.canal === 'whatsapp') {\n  if (m) {\n    if (!m.text && m.caption) update = { ...upd, message: { ...m, text: m.caption } };\n    const f = m.voice || (Array.isArray(m.photo) && m.photo[0]) || m.document;\n    if (m.voice) medio = 'voz';\n    if (f && f.file_id) {\n      const id = f.file_unique_id || f.file_id;\n      const mime = m.voice ? 'audio/ogg' : String(f.mime_type || '').split(';')[0].trim().toLowerCase();\n      const ext = ({ 'audio/ogg': 'ogg', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' })[mime]\n        || (mime.startsWith('image/') ? mime.slice(6).replace(/[^a-z0-9]/g, '').slice(0, 10) : 'bin');\n      const nombre = m.voice ? 'nota_' + id + '.ogg' : m.photo ? 'foto_' + id + '.' + ext : (f.file_name || 'documento_' + id + '.' + ext);\n      archivoInfo = { file_id: f.file_id, mime, nombre, file_unique_id: id, ...(m.voice ? { voz: true } : {}) };\n    }\n  }\n  return [{ json: { update, archivoInfo, medio } }];\n}\nif (m) {\n  if (!m.text && m.caption) update = { ...upd, message: { ...m, text: m.caption } };\n  if (m.voice && m.voice.file_id) {\n    medio = 'voz';\n    if (!(m.voice.file_size > MAX)) archivoInfo = { file_id: m.voice.file_id, mime: 'audio/ogg', nombre: 'nota_' + m.voice.file_unique_id + '.ogg', file_unique_id: m.voice.file_unique_id, voz: true };\n  } else if (m.audio && m.audio.file_id) {\n    medio = 'voz';\n    const am = String(m.audio.mime_type || '').toLowerCase();\n    if (!(m.audio.file_size > MAX)) archivoInfo = { file_id: m.audio.file_id, mime: am.startsWith('audio/') ? am : 'audio/ogg', nombre: m.audio.file_name || ('audio_' + m.audio.file_unique_id), file_unique_id: m.audio.file_unique_id, voz: true };\n  } else if (Array.isArray(m.photo) && m.photo.length) {\n    const chicas = m.photo.filter((p) => !(p.file_size > FOTO_MAX));\n    const f = chicas.length\n      ? chicas.reduce((a, b) => (tam(b) >= tam(a) ? b : a))\n      : m.photo.reduce((a, b) => (tam(b) <= tam(a) ? b : a));\n    if (f.file_id && !(f.file_size > MAX)) archivoInfo = { file_id: f.file_id, mime: 'image/jpeg', nombre: 'foto_' + f.file_unique_id + '.jpg', file_unique_id: f.file_unique_id };\n  } else if (m.document && m.document.file_id) {\n    const dc = m.document, mime = String(dc.mime_type || '').toLowerCase();\n    if ((mime.startsWith('image/') || mime === 'application/pdf') && !(dc.file_size > MAX)) {\n      archivoInfo = { file_id: dc.file_id, mime, nombre: dc.file_name || ('documento_' + dc.file_unique_id), file_unique_id: dc.file_unique_id };\n    }\n  }\n}\nreturn [{ json: { update, archivoInfo, medio } }];"
+      },
+      "id": "975060af-4636-545f-95e2-c1224efac1ba",
+      "name": "Datos del mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b22a8f73-07e5-556b-bb35-d2f352c5d53d",
+              "leftValue": "={{ ($json.update.canal || 'telegram') === 'telegram' && !!$json.archivoInfo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ebb02e95-dcb1-5fc4-9756-4753cdb3b16c",
+      "name": "¿Trae archivo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        480,
+        200
+      ],
+      "notes": "T-049: Telegram retains getFile; WhatsApp media uses Graph and validates URL, MIME type, and size before download.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.archivoInfo.file_id }}",
+        "additionalFields": {}
+      },
+      "id": "3706ac82-f8fa-59b3-9093-48fc00f091a3",
+      "name": "Descargar archivo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        720,
+        360
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Binario descargado => base64 para Apps Script (no para voz). `tipo` (voz|imagen|pdf|null) dice que IA puede usar el binario. Sin binario / muy grande / error => sin archivo.\nconst MAX = 10 * 1024 * 1024;\nconst info = $('Datos del mensaje').first().json.archivoInfo;\nconst it = $input.first();\n// Un fallo WA debe pasar por autorización/deduplicación y cerrar sin registrar el caption.\nconst falloWA = () => {\n  const upd = $('Datos del mensaje').first().json.update;\n  if (upd.canal !== 'whatsapp') return [{ json: { archivo: null, tipo: null } }];\n  const msg = { ...upd.message };\n  for (const k of ['text', 'caption', 'voice', 'audio', 'photo', 'document', 'reply_to_message']) delete msg[k];\n  msg.document = { mime_type: 'application/x-archivo-no-disponible' };\n  return [{ json: { archivo: null, tipo: null, archivoErrorWA: true, updateSinArchivo: { ...upd, message: msg } } }];\n};\nif ($('Datos del mensaje').first().json.update.canal === 'whatsapp' && it.json?.error) return falloWA();\nif (!info || !it.binary || !it.binary.data) return falloWA();\nif (info.voz) return [{ json: { archivo: null, tipo: 'voz' } }];\nconst buf = await this.helpers.getBinaryDataBuffer(0, 'data');\nif (!buf || !buf.length || buf.length > MAX) return falloWA();\nconst tipo = info.mime === 'application/pdf' ? 'pdf' : 'imagen';\nreturn [{ json: { tipo, archivo: { base64: buf.toString('base64'), mime: info.mime, nombre: info.nombre, file_unique_id: info.file_unique_id } } }];"
+      },
+      "id": "f55aa32b-6cd2-58ba-bd78-658583901284",
+      "name": "Armar archivo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $json.callbackId }}",
+        "additionalFields": {
+          "text": "={{ $json.texto }}",
+          "show_alert": false
+        }
+      },
+      "id": "7c1e5a42-3b9d-4f60-9a1e-5d2b8c0f6a31",
+      "name": "Aviso emergente",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3840,
+        440
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.1-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.1-flash-lite"
+        },
+        "text": "={{ $('Procesar').first().json.prompt }}",
+        "inputType": "binary",
+        "options": {}
+      },
+      "id": "64196feb-eb83-58a3-abec-b0e421c020a4",
+      "name": "IA audio",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        2400,
+        380
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gemini VehicleLedger"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.5-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.5-flash-lite"
+        },
+        "text": "={{ $('Procesar').first().json.prompt }}",
+        "inputType": "binary",
+        "options": {}
+      },
+      "id": "0d9afc4d-3e6a-598a-b489-cad8029a522c",
+      "name": "IA audio respaldo",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        2880,
+        380
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gemini VehicleLedger"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.1-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.1-flash-lite"
+        },
+        "text": "={{ $('Procesar').first().json.prompt }}",
+        "inputType": "binary",
+        "options": {
+          "maxOutputTokens": 8000
+        }
+      },
+      "id": "28a87fe2-2bd8-5b43-bab1-028626577abe",
+      "name": "IA imagen",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        2400,
+        540
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gemini VehicleLedger"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.5-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.5-flash-lite"
+        },
+        "text": "={{ $('Procesar').first().json.prompt }}",
+        "inputType": "binary",
+        "options": {
+          "maxOutputTokens": 8000
+        }
+      },
+      "id": "cb0c84f5-3dd7-59f0-81e5-3b25c5198f28",
+      "name": "IA imagen respaldo",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        2880,
+        540
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gemini VehicleLedger"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.1-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.1-flash-lite"
+        },
+        "text": "={{ $('Procesar').first().json.prompt }}",
+        "inputType": "binary",
+        "options": {
+          "maxOutputTokens": 32000
+        }
+      },
+      "id": "f5cd0763-460b-5320-810c-a3eb01e7c1b8",
+      "name": "IA PDF",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        2400,
+        700
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gemini VehicleLedger"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.5-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.5-flash-lite"
+        },
+        "text": "={{ $('Procesar').first().json.prompt }}",
+        "inputType": "binary",
+        "options": {
+          "maxOutputTokens": 32000
+        }
+      },
+      "id": "f7dc354a-a7c1-5779-abea-412f39c04d0b",
+      "name": "IA PDF respaldo",
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        2880,
+        700
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Gemini VehicleLedger"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Devuelve el binario descargado (voz/imagen/PDF) con su tipo MIME, para las IA con archivo. Sin binario => item vacio (la IA de texto no lo usa).\nconst esWA = $('Datos del mensaje').first().json.update.canal === 'whatsapp';\nconst descarga = esWA ? $('WA Binario archivo') : $('Descargar archivo');\nif (!descarga.isExecuted) return [{ json: {} }];\n// T-019: PDF con clave -> Apps Script devuelve `archivoIA` (copia sin clave); la IA lee esa. Sin archivoIA: el binario original, como siempre.\nconst ai = $('Procesar').first().json.archivoIA;\nif (ai && ai.base64) return [{ json: {}, binary: { data: await this.helpers.prepareBinaryData(Buffer.from(ai.base64, 'base64'), ai.nombre || 'archivo.pdf', 'application/pdf') } }];\nconst info = $('Datos del mensaje').first().json.archivoInfo;\nconst bin = descarga.first().binary;\nif (!info || !bin || !bin.data) return [{ json: {} }];\nconst ext = esWA ? bin.data.fileExtension : (info.nombre.split('.').pop() || '').toLowerCase();\nreturn [{ json: {}, binary: { data: { ...bin.data, fileName: info.nombre, fileExtension: ext, mimeType: info.mime } } }];"
+      },
+      "id": "a323db31-92a1-554b-9513-bd4b86ab598e",
+      "name": "Recuperar archivo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "502e5ddb-3617-50e0-b163-e7b2de67c53f",
+                    "leftValue": "={{ $('Procesar').first().json.usarArchivo === true ? (($('Armar archivo').isExecuted ? $('Armar archivo').first().json.tipo : '') || 'sin') : '' }}",
+                    "rightValue": "voz",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "voz"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "64eacdaa-4e3c-518f-a26c-5626e4d47f66",
+                    "leftValue": "={{ $('Procesar').first().json.usarArchivo === true ? (($('Armar archivo').isExecuted ? $('Armar archivo').first().json.tipo : '') || 'sin') : '' }}",
+                    "rightValue": "imagen",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "imagen"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "fe0cc5fa-61d4-5fd8-8bc3-9aecc868d6d1",
+                    "leftValue": "={{ $('Procesar').first().json.usarArchivo === true ? (($('Armar archivo').isExecuted ? $('Armar archivo').first().json.tipo : '') || 'sin') : '' }}",
+                    "rightValue": "pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "pdf"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5a674cf4-d4e5-5150-85ff-0c79d42f5615",
+                    "leftValue": "={{ $('Procesar').first().json.usarArchivo === true ? (($('Armar archivo').isExecuted ? $('Armar archivo').first().json.tipo : '') || 'sin') : '' }}",
+                    "rightValue": "sin",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sin binario"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "b591c7b4-798a-5ef1-96a5-529a3e4e2525",
+      "name": "¿Qué IA?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2160,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Devuelve el binario descargado (voz/imagen/PDF) con su tipo MIME, para las IA con archivo. Sin binario => item vacio (la IA de texto no lo usa).\nconst esWA = $('Datos del mensaje').first().json.update.canal === 'whatsapp';\nconst descarga = esWA ? $('WA Binario archivo') : $('Descargar archivo');\nif (!descarga.isExecuted) return [{ json: {} }];\nconst info = $('Datos del mensaje').first().json.archivoInfo;\nconst bin = descarga.first().binary;\nif (!info || !bin || !bin.data) return [{ json: {} }];\nconst ext = esWA ? bin.data.fileExtension : (info.nombre.split('.').pop() || '').toLowerCase();\nreturn [{ json: {}, binary: { data: { ...bin.data, fileName: info.nombre, fileExtension: ext, mimeType: info.mime } } }];"
+      },
+      "id": "f95b6646-0956-543f-b03f-8ae4b711f617",
+      "name": "Recuperar audio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Devuelve el binario descargado (voz/imagen/PDF) con su tipo MIME, para las IA con archivo. Sin binario => item vacio (la IA de texto no lo usa).\nconst esWA = $('Datos del mensaje').first().json.update.canal === 'whatsapp';\nconst descarga = esWA ? $('WA Binario archivo') : $('Descargar archivo');\nif (!descarga.isExecuted) return [{ json: {} }];\nconst info = $('Datos del mensaje').first().json.archivoInfo;\nconst bin = descarga.first().binary;\nif (!info || !bin || !bin.data) return [{ json: {} }];\nconst ext = esWA ? bin.data.fileExtension : (info.nombre.split('.').pop() || '').toLowerCase();\nreturn [{ json: {}, binary: { data: { ...bin.data, fileName: info.nombre, fileExtension: ext, mimeType: info.mime } } }];"
+      },
+      "id": "ec959290-0307-5220-a5be-bc47898a0ee8",
+      "name": "Recuperar imagen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Devuelve el binario descargado (voz/imagen/PDF) con su tipo MIME, para las IA con archivo. Sin binario => item vacio (la IA de texto no lo usa).\nconst esWA = $('Datos del mensaje').first().json.update.canal === 'whatsapp';\nconst descarga = esWA ? $('WA Binario archivo') : $('Descargar archivo');\nif (!descarga.isExecuted) return [{ json: {} }];\n// T-019: PDF con clave -> Apps Script devuelve `archivoIA` (copia sin clave); la IA lee esa. Sin archivoIA: el binario original, como siempre.\nconst ai = $('Procesar').first().json.archivoIA;\nif (ai && ai.base64) return [{ json: {}, binary: { data: await this.helpers.prepareBinaryData(Buffer.from(ai.base64, 'base64'), ai.nombre || 'archivo.pdf', 'application/pdf') } }];\nconst info = $('Datos del mensaje').first().json.archivoInfo;\nconst bin = descarga.first().binary;\nif (!info || !bin || !bin.data) return [{ json: {} }];\nconst ext = esWA ? bin.data.fileExtension : (info.nombre.split('.').pop() || '').toLowerCase();\nreturn [{ json: {}, binary: { data: { ...bin.data, fileName: info.nombre, fileExtension: ext, mimeType: info.mime } } }];"
+      },
+      "id": "019e1f6d-fc8f-546c-9a28-8057699a7cf4",
+      "name": "Recuperar PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 1 · Input\nTrigger, data, and attachment. Typing status runs separately without delaying processing.",
+        "height": 640,
+        "width": 1140,
+        "color": 4
+      },
+      "id": "5e0a7000-0000-4000-8000-000000000001",
+      "name": "Sección 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2 · Apps Script\nProcess the request and classify the response.",
+        "height": 540,
+        "width": 700,
+        "color": 5
+      },
+      "id": "5e0a7000-0000-4000-8000-000000000002",
+      "name": "Sección 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3 · AI\nText above (HTTP, minimal reasoning); audio, image, and PDF below.",
+        "height": 660,
+        "width": 1180,
+        "color": 6
+      },
+      "id": "5e0a7000-0000-4000-8000-000000000003",
+      "name": "Sección 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1880,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4 · Process AI proposal",
+        "height": 200,
+        "width": 700,
+        "color": 3
+      },
+      "id": "5e0a7000-0000-4000-8000-000000000004",
+      "name": "Sección 4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 5 · Response\nCallback, notification, edit, or send.",
+        "height": 1500,
+        "width": 960,
+        "color": 2
+      },
+      "id": "5e0a7000-0000-4000-8000-000000000005",
+      "name": "Sección 5",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3800,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 6 · Link reply",
+        "height": 420,
+        "width": 860,
+        "color": 1
+      },
+      "id": "5e0a7000-0000-4000-8000-000000000006",
+      "name": "Sección 6",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        4760,
+        1060
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "4859c34b-2282-495b-9a95-ea798131b4a3",
+      "name": "Entrada WhatsApp",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "value": "YOUR_WORKFLOW_ID",
+          "mode": "id"
+        },
+        "mode": "each",
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "canal": "={{ $json.canal }}",
+            "destino": "={{ $json.destino }}",
+            "texto": "={{ $json.texto }}",
+            "botones": "={{ $json.botones }}",
+            "editarMessageId": "={{ $json.editarMessageId }}",
+            "replyTo": "={{ $json.replyTo }}",
+            "nombre": "={{ $json.nombre }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "canal",
+              "displayName": "canal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "destino",
+              "displayName": "destino",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "botones",
+              "displayName": "botones",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "array"
+            },
+            {
+              "id": "editarMessageId",
+              "displayName": "editarMessageId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "replyTo",
+              "displayName": "replyTo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "nombre",
+              "displayName": "nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "a5b10c88-fd9f-46f8-bacc-a93d46f0f52d",
+      "name": "Enviar respuesta",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        4440,
+        1000
+      ],
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9741ac56-7d83-4f22-ac70-d0edc5a6bc12",
+              "leftValue": "={{ ($('Datos del mensaje').first().json.update.canal || 'telegram') === 'telegram' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ac798690-224c-409d-8745-56e1729434b0",
+      "name": "¿Aviso Telegram?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3840,
+        580
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aviso fijo seguro: &amp; / &lt; / &gt; sin detalles de credenciales.\nreturn [{ json: { texto: '⚠️ No se pudo ejecutar Cuentas - Enviar. Revise la ejecución en n8n.' }, pairedItem: { item: 0 } }];"
+      },
+      "id": "dfd35ea8-249f-4c93-874d-839aba6d4ef6",
+      "name": "Preparar error de envío",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4440,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": -1001234567890,
+        "text": "={{ $json.texto }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "6a522574-742a-4982-a830-af75b8e809e0",
+      "name": "Avisar error de envío",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4680,
+        1500
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "content": "WhatsApp input accepts a direct update or {update}; the external input calls mode=each with waitForSubWorkflow=false. Enviar respuesta waits for Cuentas - Enviar v1: replace CONFIGURE_ENVIAR_WORKFLOW_ID. Its numeric messageId feeds Vincular (WA uses the group copy). T-049: getFile remains Telegram-only. WA media: Config WA (match Graph version with cuentas-enviar-v1) → metadata → validate HTTPS host/MIME/10 MB → download without redirects → binary data → Armar archivo. Configure WhatsApp VehicleLedger credentials in both HTTP nodes. Failures pass through Apps Script permissions/update_id checks and produce a visible resend response. Apps Script locking and deduplication are unchanged.\n\nT-048: both triggers pass through Preparar entrada. Only WA with context_id reads wa_contexto. Validate recipient, age <=7 days, numeric message_id, and offered callback. Invalid/expired buttons end silently; replies without context continue as normal text. Leer vigencia WA rejects a superseded menu for the same TG copy. Callback reservation: from:context_id:data → insert → wait 2 s → lowest ID, owner $execution.id. Apps Script handles wamid retries as update_id wa_.... Tables and cleanup belong to the send subworkflow. T-049: voice, photo, and PDF use the shared AI path and fallbacks; live n8n/Meta tests remain pending.",
+        "height": 420,
+        "width": 680
+      },
+      "id": "0fd983f1-6b1b-4006-b758-acab891de454",
+      "name": "T-047 · Canales y pendientes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Un update por ejecución (Execute Workflow mode=each), directo o envuelto.\nconst raw = $input.first().json || {};\nconst u = JSON.parse(JSON.stringify(raw.update && typeof raw.update === 'object' ? raw.update : raw));\nif (u.canal === 'whatsapp' && !u.wa?.context_id) {\n  if (u.callback_query) return []; // Sin referencia no existe un botón verificable.\n  if (u.message) delete u.message.reply_to_message;\n}\nreturn [{ json: u, pairedItem: { item: 0 } }];"
+      },
+      "id": "71c32983-160a-4667-9dc4-1d8d1a368586",
+      "name": "Preparar entrada",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cb916f68-27ab-43b2-9f03-4505a2f51c40",
+              "leftValue": "={{ $json.canal === 'whatsapp' && !!$json.wa?.context_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1cf477cc-3827-4cd8-9c4b-763c0ecbdee6",
+      "name": "¿Contexto WhatsApp?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "i3fw7DJNkvpFtNMl"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "wamid",
+              "condition": "eq",
+              "keyValue": "={{ $json.wa.context_id }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1,
+        "orderBy": true,
+        "orderByColumn": "id",
+        "orderByDirection": "ASC"
+      },
+      "id": "c637d6e3-11d2-478d-b3bc-8bad8ecd4b18",
+      "name": "Leer contexto WA",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        -60,
+        -400
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const u = JSON.parse(JSON.stringify($('Preparar entrada').first().json));\nconst row = $input.first().json;\nif (row.error) throw new Error('No se pudo leer contexto WA');\nconst digitos = v => String(v ?? '').replace(/\\D/g, '');\nlet ctx = null;\ntry { ctx = JSON.parse(row.datos); } catch (_) { /* Sin contexto utilizable. */ }\nconst ts = Date.parse(ctx?.ts);\nconst valido = row.wamid === u.wa?.context_id && ctx && typeof ctx === 'object' && !Array.isArray(ctx)\n  && !!digitos(ctx.destino) && digitos(ctx.destino) === digitos(u.wa?.from)\n  && typeof ctx.tgMessageId === 'number' && Number.isSafeInteger(ctx.tgMessageId) && ctx.tgMessageId > 0\n  && typeof ctx.texto === 'string' && ctx.texto.length <= 1000 && Array.isArray(ctx.botones)\n  && Number.isFinite(ts) && ts >= Date.now() - 7 * 86400000 && ts <= Date.now() + 60000;\nif (u.callback_query) {\n  const data = u.callback_query.data;\n  if (!valido || typeof data !== 'string' || !data || Buffer.byteLength(data) > 64 || !ctx.botones.includes(data)) return [];\n  u.callback_query.message = { ...u.callback_query.message, message_id: ctx.tgMessageId, text: ctx.texto };\n} else if (u.message) {\n  if (valido) u.message.reply_to_message = { message_id: ctx.tgMessageId, text: ctx.texto };\n  else delete u.message.reply_to_message;\n}\nreturn [{ json: u, pairedItem: { item: 0 } }];"
+      },
+      "id": "20666d00-3ca4-4c7f-b82b-8e4941e94e2a",
+      "name": "Restaurar contexto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        180,
+        -400
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0c94d472-e526-4360-8da2-5e3eb825a045",
+              "leftValue": "={{ $json.canal === 'whatsapp' && !!$json.callback_query }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a95c995f-58b6-4c2a-8fad-e87cb2ee3882",
+      "name": "¿Callback WhatsApp?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        400,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "i3fw7DJNkvpFtNMl"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "datos",
+              "condition": "like",
+              "keyValue": "={{ '%\"destino\":\"' + String($json.wa.from).replace(/\\D/g, '') + '\",%' }}"
+            },
+            {
+              "keyName": "datos",
+              "condition": "like",
+              "keyValue": "={{ '%\"tgMessageId\":' + $json.callback_query.message.message_id + ',%' }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1,
+        "orderBy": true,
+        "orderByColumn": "id",
+        "orderByDirection": "DESC"
+      },
+      "id": "ff0b4840-8218-46b7-9530-e6b5df53b5ef",
+      "name": "Leer vigencia WA",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        620,
+        -600
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput",
+      "notes": "Latest wamid saved for the same recipient and TG copy. Saves are sequential: split messages save the interactive part last. Prevents reuse of buttons from an earlier stage of the same question."
+    },
+    {
+      "parameters": {
+        "jsCode": "const u = $('Restaurar contexto').first().json;\nconst r = $input.first().json;\nif (r.error) throw new Error('No se pudo leer vigencia WA');\n// Una edición en WA es un envío nuevo: el menú anterior queda sin efecto.\nif (r.wamid !== u.wa.context_id) return [];\nreturn [{ json: u, pairedItem: { item: 0 } }];"
+      },
+      "id": "94f6ac79-1203-47f7-896d-c45c3af87b34",
+      "name": "Validar vigencia WA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        -600
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const u = $input.first().json;\nconst from = String(u.wa?.from || '').replace(/\\D/g, '');\nconst context = u.wa?.context_id, data = u.callback_query?.data;\nif (u.canal !== 'whatsapp' || !from || !context || typeof data !== 'string' || !data) throw new Error('Callback WA incompleto');\nreturn [{ json: { update: u, clave: from + ':' + context + ':' + data, ejecucion: String($execution.id) }, pairedItem: { item: 0 } }];"
+      },
+      "id": "37f1eae7-f4d1-49c0-a125-09561ecac8f5",
+      "name": "Preparar candado WA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        -600
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "DEsFrTu6V0C8W2pX"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "clave": "={{ $json.clave }}",
+            "ejecucion": "={{ String($execution.id) }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "clave",
+              "displayName": "clave",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ejecucion",
+              "displayName": "ejecucion",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7b0ae97c-9239-47df-a755-9293fc81aaba",
+      "name": "Reservar candado WA",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1280,
+        -600
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "id": "602825aa-3942-47ad-a047-4800f32dd6a5",
+      "name": "Esperar candado WA",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1500,
+        -600
+      ],
+      "webhookId": "00000000-0000-4000-8000-000000000102",
+      "notes": "Reference reservation pattern: persist, wait 2 s, and select the lowest ID. Business decisions remain under the single Apps Script writer; this is not an atomic mutex."
+    },
+    {
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "DEsFrTu6V0C8W2pX"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "clave",
+              "condition": "eq",
+              "keyValue": "={{ $('Preparar candado WA').first().json.clave }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1,
+        "orderBy": true,
+        "orderByColumn": "id",
+        "orderByDirection": "ASC"
+      },
+      "id": "d36809f3-4791-4d8b-ad64-3129ceef6300",
+      "name": "Leer candado WA",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1720,
+        -600
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $('Preparar candado WA').first().json;\nconst rows = $input.all().map(i => i.json);\nif (rows.some(r => r.error || !Number.isSafeInteger(Number(r.id)) || Number(r.id) <= 0 || r.clave !== p.clave || typeof r.ejecucion !== 'string' || !r.ejecucion)) throw new Error('No se pudo verificar candado WA');\nconst primero = rows.sort((a, b) => Number(a.id) - Number(b.id))[0];\nif (!primero) throw new Error('Candado WA sin reserva');\nif (primero.ejecucion !== String($execution.id)) return [];\nreturn [{ json: p.update, pairedItem: { item: 0 } }];"
+      },
+      "id": "ea5072bc-c20f-42bf-8271-2887c65caf6f",
+      "name": "Verificar candado WA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1940,
+        -600
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "-1001234567890",
+        "text": "⚠️ Falló la lectura o el candado WhatsApp del bot de cuentas; no se procesó el mensaje. Revise n8n.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "d8ae9d1f-d0d5-4831-8f9d-aabe19f9e80a",
+      "name": "Avisar fallo estado WA",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2160,
+        -300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {},
+      "id": "32631812-9752-48ec-88e7-1094ea85f05b",
+      "name": "Fin estado WA",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2380,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "73c8f836-6d9c-482a-ac5c-6d197b6e69e4",
+              "leftValue": "={{ $json.update.canal === 'whatsapp' && !!$json.archivoInfo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4008a5ad-1654-44c1-8586-accc6f4ce7a1",
+      "name": "¿Archivo WhatsApp?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        480,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Igualar esta versión con Config de cuentas-enviar-v1 al instalar. Sin tokens.\nreturn [{ json: { ...$input.first().json, graphVersion: 'v25.0' } }];"
+      },
+      "id": "30c0bc2b-f82a-4db9-ab22-d2ed0527b5d2",
+      "name": "Config WA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://graph.facebook.com/' + $json.graphVersion + '/' + encodeURIComponent($json.archivoInfo.file_id) }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "options": {
+          "timeout": 20000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        }
+      },
+      "id": "edeaea68-b06f-43cb-95af-eded706edc53",
+      "name": "WA Metadatos archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        960,
+        620
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WhatsApp account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "// La URL solo procede de Graph autenticado. No aceptar URL del mensaje ni redirecciones.\nconst meta = $input.first().json || {};\nconst info = $('Datos del mensaje').first().json.archivoInfo;\nconst url = String(meta.url || '');\nif (!/^https:\\/\\/lookaside\\.fbsbx\\.com\\//i.test(url) || /[\\\\\\s\\u0000-\\u001f\\u007f]/.test(url)) throw new Error('URL de archivo WhatsApp no permitida');\nconst size = meta.file_size;\nif (typeof size !== 'number' || !Number.isSafeInteger(size) || size <= 0 || size > 10 * 1024 * 1024) throw new Error('Tamaño de archivo WhatsApp inválido: máximo 10 MB');\nconst mime = String(meta.mime_type || '').split(';')[0].trim().toLowerCase();\nconst datos = $('Datos del mensaje').first().json;\nconst esFoto = Array.isArray(datos.update.message?.photo);\nconst permitido = info && (info.voz ? mime === 'audio/ogg' : esFoto ? ['image/jpeg', 'image/png', 'image/webp'].includes(mime) : mime === 'application/pdf' || /^image\\/[a-z0-9][a-z0-9.+-]*$/.test(mime));\nif (!permitido || mime !== info.mime) throw new Error('MIME de archivo WhatsApp incoherente');\nreturn [{ json: { url, mime_type: mime, file_size: size } }];"
+      },
+      "id": "e66ac9cd-a5f5-4c71-aadc-e27c844b1d5b",
+      "name": "WA Validar archivo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        620
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          }
+        }
+      },
+      "id": "0ef2997a-e7fd-46c1-88f5-0f466521360a",
+      "name": "WA Descargar archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1440,
+        620
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WhatsApp account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Misma propiedad binaria que getFile de Telegram; no confiar en nombre/MIME del HTTP.\nconst item = $input.first();\nconst info = $('Datos del mensaje').first().json.archivoInfo;\nif (!info || !item.binary?.data) throw new Error('Archivo WhatsApp sin binario');\nconst buf = await this.helpers.getBinaryDataBuffer(0, 'data');\nif (!buf || !buf.length || buf.length > 10 * 1024 * 1024) throw new Error('Archivo WhatsApp vacío o mayor de 10 MB');\nconst ext = ({ 'audio/ogg': 'ogg', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' })[info.mime]\n  || info.mime.slice(6).replace(/[^a-z0-9]/g, '').slice(0, 10);\nreturn [{ json: {}, binary: { data: { ...item.binary.data, mimeType: info.mime, fileName: info.nombre, fileExtension: ext } } }];"
+      },
+      "id": "cbf94629-0bc7-4c46-8bc7-1d59396c30c4",
+      "name": "WA Binario archivo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        620
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Apps Script conserva permisos y update_id; solo sustituir el aviso de archivo no legible.\nconst r = $input.first().json;\nconst fallo = $('Armar archivo').isExecuted && $('Armar archivo').first().json.archivoErrorWA;\nif (!fallo || r.tipo !== 'responder') return [{ json: r }];\nreturn [{ json: { ...r, texto: 'No pude leer el archivo de WhatsApp. Reenvíe una foto JPG, PNG o WebP, un PDF o una nota de voz OGG de máximo 10 MB, o escriba el contenido.' } }];"
+      },
+      "id": "8cd463dd-7636-4588-8e33-8f2934fb0764",
+      "name": "WA Respuesta archivo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": -1001234567890,
+        "text": "⚠️ No se pudo confirmar el procesamiento del mensaje en Cuentas. Revise n8n antes de reenviarlo.",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "eb42ebec-8891-422e-b312-d7e0638a60af",
+      "name": "Avisar fallo de Procesar",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        -60
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram VehicleLedger"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    }
+  ],
+  "connections": {
+    "Mensaje de Telegram": {
+      "main": [
+        [
+          {
+            "node": "Preparar entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar": {
+      "main": [
+        [
+          {
+            "node": "WA Respuesta archivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar fallo de Procesar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tipo de respuesta": {
+      "main": [
+        [
+          {
+            "node": "Ignorar (fin)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Terminar con error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recuperar archivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Es callback?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Armar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Aviso Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta inesperada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA texto": {
+      "main": [
+        [
+          {
+            "node": "Armar IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IA texto respaldo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA texto respaldo": {
+      "main": [
+        [
+          {
+            "node": "Armar IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar IA": {
+      "main": [
+        [
+          {
+            "node": "Procesar con IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar con IA": {
+      "main": [
+        [
+          {
+            "node": "Tipo de respuesta con IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tipo de respuesta con IA": {
+      "main": [
+        [
+          {
+            "node": "Ignorar (fin)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Terminar con error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Es callback?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Armar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Aviso Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta inesperada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es callback?": {
+      "main": [
+        [
+          {
+            "node": "Responder callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin: sin callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar mensaje": {
+      "main": [
+        [
+          {
+            "node": "Enviar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Vincular?": {
+      "main": [
+        [
+          {
+            "node": "Vincular",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin: sin vínculo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vincular": {
+      "main": [
+        [
+          {
+            "node": "¿Vinculó bien?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Vinculó bien?": {
+      "main": [
+        [
+          {
+            "node": "Fin: vinculado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Terminar con error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Escribir?": {
+      "main": [
+        [
+          {
+            "node": "Escribiendo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin: no escribe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Datos del mensaje": {
+      "main": [
+        [
+          {
+            "node": "¿Trae archivo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Trae archivo?": {
+      "main": [
+        [
+          {
+            "node": "Descargar archivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Archivo WhatsApp?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar archivo": {
+      "main": [
+        [
+          {
+            "node": "Armar archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar archivo": {
+      "main": [
+        [
+          {
+            "node": "Procesar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recuperar archivo": {
+      "main": [
+        [
+          {
+            "node": "¿Qué IA?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Qué IA?": {
+      "main": [
+        [
+          {
+            "node": "IA audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IA imagen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IA PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IA texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA audio": {
+      "main": [
+        [
+          {
+            "node": "Armar IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recuperar audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA audio respaldo": {
+      "main": [
+        [
+          {
+            "node": "Armar IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA imagen": {
+      "main": [
+        [
+          {
+            "node": "Armar IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recuperar imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA imagen respaldo": {
+      "main": [
+        [
+          {
+            "node": "Armar IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA PDF": {
+      "main": [
+        [
+          {
+            "node": "Armar IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Recuperar PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IA PDF respaldo": {
+      "main": [
+        [
+          {
+            "node": "Armar IA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recuperar audio": {
+      "main": [
+        [
+          {
+            "node": "IA audio respaldo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recuperar imagen": {
+      "main": [
+        [
+          {
+            "node": "IA imagen respaldo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recuperar PDF": {
+      "main": [
+        [
+          {
+            "node": "IA PDF respaldo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entrada WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Preparar entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Aviso Telegram?": {
+      "main": [
+        [
+          {
+            "node": "Aviso emergente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar respuesta": {
+      "main": [
+        [
+          {
+            "node": "¿Vincular?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar error de envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar error de envío": {
+      "main": [
+        [
+          {
+            "node": "Avisar error de envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar error de envío": {
+      "main": [
+        [
+          {
+            "node": "Terminar con error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Terminar con error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar entrada": {
+      "main": [
+        [
+          {
+            "node": "¿Contexto WhatsApp?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Contexto WhatsApp?": {
+      "main": [
+        [
+          {
+            "node": "Leer contexto WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Datos del mensaje",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "¿Escribir?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer contexto WA": {
+      "main": [
+        [
+          {
+            "node": "Restaurar contexto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar fallo estado WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restaurar contexto": {
+      "main": [
+        [
+          {
+            "node": "¿Callback WhatsApp?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar fallo estado WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Callback WhatsApp?": {
+      "main": [
+        [
+          {
+            "node": "Leer vigencia WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Datos del mensaje",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "¿Escribir?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer vigencia WA": {
+      "main": [
+        [
+          {
+            "node": "Validar vigencia WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar fallo estado WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar vigencia WA": {
+      "main": [
+        [
+          {
+            "node": "Preparar candado WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar fallo estado WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar candado WA": {
+      "main": [
+        [
+          {
+            "node": "Reservar candado WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar fallo estado WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reservar candado WA": {
+      "main": [
+        [
+          {
+            "node": "Esperar candado WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar fallo estado WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar candado WA": {
+      "main": [
+        [
+          {
+            "node": "Leer candado WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer candado WA": {
+      "main": [
+        [
+          {
+            "node": "Verificar candado WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar fallo estado WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar candado WA": {
+      "main": [
+        [
+          {
+            "node": "Datos del mensaje",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "¿Escribir?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar fallo estado WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar fallo estado WA": {
+      "main": [
+        [
+          {
+            "node": "Fin estado WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin estado WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Archivo WhatsApp?": {
+      "main": [
+        [
+          {
+            "node": "Config WA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Procesar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config WA": {
+      "main": [
+        [
+          {
+            "node": "WA Metadatos archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA Metadatos archivo": {
+      "main": [
+        [
+          {
+            "node": "WA Validar archivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA Validar archivo": {
+      "main": [
+        [
+          {
+            "node": "WA Descargar archivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA Descargar archivo": {
+      "main": [
+        [
+          {
+            "node": "WA Binario archivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA Binario archivo": {
+      "main": [
+        [
+          {
+            "node": "Armar archivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WA Respuesta archivo": {
+      "main": [
+        [
+          {
+            "node": "Tipo de respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar fallo de Procesar": {
+      "main": [
+        [
+          {
+            "node": "Terminar con error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Terminar con error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Bogota",
+    "errorWorkflow": "YOUR_ERROR_WORKFLOW_ID"
+  }
+}

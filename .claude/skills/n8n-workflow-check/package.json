@@ -1,0 +1,8 @@
+{
+  "name": "n8n-workflow-check",
+  "private": true,
+  "description": "Dependencies for the offline n8n Code-node simulator (Luxon, as used by n8n).",
+  "dependencies": {
+    "luxon": "^3.7.2"
+  }
+}
